@@ -12,6 +12,13 @@ import {
   averageColor, paletteFromAverage, type GameLook, type WorldPalette,
 } from './engine/look';
 import { analyzeMusic, type MusicAnalysis } from './engine/music';
+import {
+  achievementsHtml, buyLook, calendarHtml, drawSharePoster, hasLook, loadProfile,
+  LOOK_PRICES, lookPrice, recordGame, type ProfileData,
+} from './engine/profile';
+import {
+  chartFromGhost, ghostFromRun, ghostScoreAt, ghostShareUrl, parseGhostHash, type GhostData,
+} from './engine/ghost';
 import { ActionClassifier } from './input/classifier';
 import { GamepadInput, connectedPadNames } from './input/gamepad';
 import { PoseInput } from './input/pose';
@@ -40,6 +47,28 @@ let castCode: string | null = null;
 let mirrorPlay = false;
 /** 当前关卡（null = 自由练习/工坊谱面） */
 let currentLevel: LevelDef | null = null;
+
+// ---------- P0 档案层 + P1 影子挑战 ----------
+let profile: ProfileData = loadProfile();
+/** 收到的影子挑战（菜单横幅展示，接受后进对局） */
+let pendingGhost: GhostData | null = null;
+/** 本局对手影子（好友发起的挑战） */
+let ghostRival: GhostData | null = null;
+/** 本局分数时间轴 [elapsedMs, score]（发起挑战时压进链接） */
+let ghostTrace: number[][] = [];
+let lastTracedScore = -1;
+/** 本局已进行毫秒（updateHud 采样，结算折算时长） */
+let runElapsedMs = 0;
+/** 本局谱面（影子序列化用） */
+let currentChart: Chart | null = null;
+/** 上局结算快照（分享海报 / 发起挑战按钮用） */
+let lastRun: { stats: GameStats; grade: string; stars: number; levelName: string } | null = null;
+
+const LOOK_NAMES: Record<string, string> = {
+  'bg:space': '🌌 星际漫游', 'bg:candy': '🍬 糖果甜心', 'bg:forest': '🌿 绿野仙踪',
+  'skin:flame': '🔥 烈焰勇士', 'skin:frost': '❄️ 冰雪精灵', 'skin:nature': '🌱 自然之灵',
+  'skin:candy': '🎀 糖果甜心', 'skin:gold': '⭐ 黄金战士',
+};
 
 // 定制音乐状态
 interface CustomMusic {
@@ -113,9 +142,19 @@ function currentLook(): GameLook {
 function refreshLookUi(): void {
   document.querySelectorAll<HTMLElement>('.look-chip[data-bg]').forEach((el) => {
     el.classList.toggle('selected', el.dataset.bg === look.theme);
+    const id = `bg:${el.dataset.bg}`;
+    const base = el.dataset.baseLabel ?? (el.dataset.baseLabel = el.textContent ?? '');
+    const locked = lookPrice(id) > 0 && !hasLook(profile, id);
+    el.classList.toggle('locked', locked);
+    el.textContent = locked ? `${base} 🔒${lookPrice(id)}⭐` : base;
   });
   document.querySelectorAll<HTMLElement>('.look-chip[data-skin]').forEach((el) => {
     el.classList.toggle('selected', el.dataset.skin === look.skin);
+    const id = `skin:${el.dataset.skin}`;
+    const base = el.dataset.baseLabel ?? (el.dataset.baseLabel = el.textContent ?? '');
+    const locked = lookPrice(id) > 0 && !hasLook(profile, id);
+    el.classList.toggle('locked', locked);
+    el.textContent = locked ? `${base} 🔒${lookPrice(id)}⭐` : base;
   });
   const label = $('#coach-label');
   if (label && !label.classList.contains('demoing')) {
@@ -165,6 +204,112 @@ const $ = <T extends HTMLElement>(sel: string): T => {
 function showScreen(id: string): void {
   document.querySelectorAll('.screen').forEach((s) => s.classList.remove('active'));
   $(`#${id}`).classList.add('active');
+}
+
+// ---------- Toast / 星星 / 返回 ----------
+let toastTimer = 0;
+
+function showToast(text: string): void {
+  const el = $('#toast');
+  el.textContent = text;
+  el.hidden = false;
+  el.classList.remove('show');
+  void el.offsetWidth;
+  el.classList.add('show');
+  window.clearTimeout(toastTimer);
+  toastTimer = window.setTimeout(() => {
+    el.hidden = true;
+  }, 2800);
+}
+
+function refreshStarCount(): void {
+  const t = String(Math.round(profile.stars));
+  const a = document.querySelector('#star-count');
+  if (a) a.textContent = t;
+  const b = document.querySelector('#star-count-2');
+  if (b) b.textContent = t;
+}
+
+/** 统一返回：对局→退局；子屏→回菜单；菜单/体检→0（壳双按退出） */
+function goBack(): number {
+  if (game) {
+    quitGame();
+    return 1;
+  }
+  const active = document.querySelector('.screen.active')?.id ?? '';
+  if (active === 'screen-check' || active === 'screen-menu') return 0;
+  if (active === 'screen-result') {
+    quitGame();
+    return 1;
+  }
+  showScreen('screen-menu');
+  return 1;
+}
+
+/** 付费装扮：未解锁先买（星星不足提示差额） */
+function ensureLookUnlocked(id: string): boolean {
+  if (hasLook(profile, id)) return true;
+  const name = LOOK_NAMES[id] ?? id;
+  const price = lookPrice(id);
+  if (buyLook(profile, id)) {
+    showToast(`已解锁 ${name}！`);
+    refreshStarCount();
+    return true;
+  }
+  showToast(`星星不够，解锁 ${name} 还差 ${price - profile.stars} ⭐`);
+  return false;
+}
+
+/** 我的档案屏：生涯统计 / 打卡日历 / 成就墙 / 装扮商店 */
+function renderProfile(): void {
+  refreshStarCount();
+  const t = profile.totals;
+  const stat = (label: string, value: string | number): string =>
+    `<div class="pf-stat"><b>${value}</b><span>${label}</span></div>`;
+  $('#pf-stats').innerHTML = [
+    stat('🎮 总局数', t.games),
+    stat('⏱ 累计时长', `${Math.round(t.timeSec / 60)} 分`),
+    stat('🔥 消耗热量', `${Math.round(t.kcal)} kcal`),
+    stat('🤸 动作次数', t.actions),
+    stat('⚡ 最高连击', t.maxCombo),
+    stat('🏅 破纪录次数', profile.records),
+  ].join('');
+  $('#pf-cal').innerHTML = calendarHtml(profile);
+  $('#pf-streak').innerHTML = `🔥 连续打卡 <b>${profile.streak.days}</b> 天 · 最近 28 天`;
+  $('#pf-ach').innerHTML = achievementsHtml(profile);
+  $('#pf-shop').innerHTML = Object.keys(LOOK_PRICES).map((id) => {
+    const owned = hasLook(profile, id);
+    return `<div class="shop-item${owned ? ' owned' : ''}">
+      <div class="shop-name">${LOOK_NAMES[id] ?? id}</div>
+      <button class="btn btn-small ${owned ? 'btn-ghost' : 'btn-primary'}" data-buy="${id}" ${owned ? 'disabled' : ''}>
+        ${owned ? '已拥有 ✓' : `解锁 ${lookPrice(id)} ⭐`}
+      </button>
+    </div>`;
+  }).join('');
+  $('#pf-shop').querySelectorAll<HTMLElement>('[data-buy]').forEach((el) => {
+    el.addEventListener('click', () => {
+      const id = el.dataset.buy ?? '';
+      if (buyLook(profile, id)) {
+        showToast(`已解锁 ${LOOK_NAMES[id] ?? id}！`);
+        renderProfile();
+        refreshLookUi();
+      } else {
+        showToast(`星星不够，还差 ${lookPrice(id) - profile.stars} ⭐`);
+      }
+    });
+  });
+}
+
+/** 影子挑战横幅（boot / 忽略后刷新用） */
+function refreshGhostBanner(): void {
+  const banner = $('#ghost-banner');
+  if (!pendingGhost) {
+    banner.hidden = true;
+    return;
+  }
+  $('#ghost-banner-title').textContent = `👻 ${pendingGhost.name} 向你发起影子挑战`;
+  $('#ghost-banner-sub').textContent = `${pendingGhost.date} · 对手成绩 ${pendingGhost.res.score} 分 · 同谱面竞速`;
+  banner.hidden = false;
 }
 
 // ---------- 设备体检 ----------
@@ -817,11 +962,15 @@ async function startLevel(def: LevelDef): Promise<void> {
   await startGame(buildLevelChart(def, difficulty, chartSeed), levelGameOpts(def));
 }
 
-/** 再来一局（关卡模式：同关重开，不重看过场） */
+/** 再来一局（关卡模式：同关重开；影子挑战：同谱面重赛，不重看过场） */
 function restartCurrent(): void {
+  const rival = ghostRival;
   quitGame();
   if (currentLevel) {
     void startGame(buildLevelChart(currentLevel, difficulty, chartSeed), levelGameOpts(currentLevel));
+  } else if (rival) {
+    ghostRival = rival;
+    void startGame(chartFromGhost(rival));
   } else {
     void startGame();
   }
@@ -842,6 +991,20 @@ async function startGame(chartOverride?: Chart, opts?: GameOpts): Promise<void> 
   const canvas = $<HTMLCanvasElement>('#game-canvas');
   // 谱面：关卡谱面 / 与节奏工坊预览同源（style/seed/BPM/偏移即所见即所玩）
   const chart = chartOverride ?? buildCurrentChart();
+  // 影子挑战：重置分数时间轴采样 + 对比条
+  currentChart = chart;
+  ghostTrace = [];
+  lastTracedScore = -1;
+  runElapsedMs = 0;
+  const gbar = $('#ghost-bar');
+  gbar.hidden = !ghostRival;
+  if (ghostRival) {
+    $('#gb-name').textContent = ghostRival.name;
+    $('#gb-rival').textContent = '0';
+    $('#gb-you').textContent = '0';
+    $('#gb-rival-fill').style.width = '0%';
+    $('#gb-you-fill').style.width = '0%';
+  }
   // 关卡模式用关卡自带节拍（合成 BGM），自由练习支持自定义音乐
   if (!currentLevel && music) audio.loadBacking(music.buffer);
   else audio.clearBacking();
@@ -1148,6 +1311,21 @@ function updateHud(s: GameStats): void {
   $('#hud-kcal').textContent = `${s.kcal.toFixed(0)} kcal`;
   // 血量（1:1 ❤100，miss 扣 4）
   $('#hud-hearts').innerHTML = `❤ <b>${Math.max(0, 100 - s.misses * 4)}</b>`;
+  // 影子挑战：分数时间轴采样（发起挑战时压进链接）+ 实时对比条
+  const elapsedMs = Math.max(0, (audio.now - audio.songStart) * 1000);
+  runElapsedMs = elapsedMs;
+  if (currentChart && s.score !== lastTracedScore) {
+    ghostTrace.push([Math.round(elapsedMs), s.score]);
+    lastTracedScore = s.score;
+  }
+  if (ghostRival) {
+    const rivalScore = ghostScoreAt(ghostRival, elapsedMs);
+    $('#gb-rival').textContent = String(rivalScore);
+    $('#gb-you').textContent = String(s.score);
+    const peak = Math.max(rivalScore, s.score, 1);
+    $('#gb-rival-fill').style.width = `${(rivalScore / peak) * 100}%`;
+    $('#gb-you-fill').style.width = `${(s.score / peak) * 100}%`;
+  }
 }
 
 async function showResult(s: GameStats): Promise<void> {
@@ -1198,6 +1376,36 @@ async function showResult(s: GameStats): Promise<void> {
   $('#result-title').textContent = currentLevel
     ? `${currentLevel.nameCn} 完成！`
     : scene === 'class' ? '全班都动起来了！' : '热身完成！';
+  // ---------- P0：入档（打卡 / PB / 星星 / 成就） ----------
+  const levelKey = currentLevel?.id ?? 'free';
+  const levelName = currentLevel?.nameCn ?? (scene === 'class' ? '课堂热身' : '自由练习');
+  const rec = recordGame(profile, {
+    stats: s, levelKey, levelName, grade, stars,
+    durationSec: runElapsedMs / 1000, totalLevels: LEVELS.length,
+  });
+  refreshStarCount();
+  $('#rs-extra').hidden = false;
+  $('#rs-record').hidden = !rec.newRecord;
+  $('#rs-earn').innerHTML = `⭐ 本局 +${rec.starsEarned} 星星${rec.firstClear ? ' · 🚩 首通 +5' : ''}${rec.newRecord ? ' · 🔥 破纪录 +1' : ''}`;
+  $('#rs-ach').innerHTML = rec.achievements
+    .map((a) => `<span class="rs-ach-item">${a.icon} ${a.name}</span>`).join('');
+  // 影子对决结果
+  const rg = $('#rs-ghost');
+  if (ghostRival) {
+    const win = s.score >= ghostRival.res.score;
+    rg.textContent = win
+      ? `👻 影子对决 ${s.score} : ${ghostRival.res.score} —— 你赢了 ${ghostRival.name}！`
+      : `👻 影子对决 ${s.score} : ${ghostRival.res.score} —— 惜败，再战一局！`;
+    rg.hidden = false;
+    rg.classList.toggle('win', win);
+  } else {
+    rg.hidden = true;
+  }
+  // 分享/挑战快照
+  lastRun = { stats: s, grade, stars, levelName };
+  if (rec.achievements.length) {
+    showToast(`🏆 新成就：${rec.achievements.map((a) => a.name).join('、')}`);
+  }
   // 下一关按钮（关卡链末尾隐藏）
   const next = currentLevel ? nextLevel(currentLevel.id) : null;
   $<HTMLButtonElement>('#btn-next-level').hidden = !next;
@@ -1216,6 +1424,7 @@ function quitGame(): void {
   padInput?.stop();
   padInput = null;
   classifier = new ActionClassifier();
+  ghostRival = null; // 影子对决只在本局有效（重赛由 restartCurrent 接棒）
   showScreen('screen-menu');
 }
 
@@ -1300,6 +1509,13 @@ function setupCast(): void {
 }
 
 // ---------- 启动 ----------
+/** TV 大屏形态：APK 壳带 ?tv=1（UiModeManager 判定），或电视浏览器 UA */
+function isTvDevice(): boolean {
+  if (new URLSearchParams(location.search).has('tv')) return true;
+  return /TV|SmartTV|Smart-TV|AppleTV|GoogleTV|HbbTV|NetCast|Viera|BRAVIA|Tizen.+TV|Web0S|AFT|XiaoBai/i
+    .test(navigator.userAgent);
+}
+
 function boot(): void {
   // URL 参数：手机传感器模式 / 投屏接收端（电视）
   const params = new URLSearchParams(location.search);
@@ -1313,12 +1529,30 @@ function boot(): void {
   setupMenu();
   setupCast();
 
+  // P0/P1：星星计数 + 影子挑战横幅（菜单可见前预置）
+  refreshStarCount();
+  pendingGhost = parseGhostHash();
+  refreshGhostBanner();
+
   if (role === 'cast' && code) {
     // 一键投屏接收端：直接以「手机当识别器」进菜单（固定配对码，发起端手机自动连上）
     castCode = code;
     userPickedSource = true;
     selectCard('source', 'phone');
     showMenuStep(2); // 直达「识别」步，投屏连接状态（pair-card）可见
+    showScreen('screen-menu');
+    refreshChartLab();
+    return;
+  }
+
+  // TV 形态：跳过体检直达菜单；默认手机当识别器（扫码配对，摄像头对着人）
+  if (isTvDevice()) {
+    document.documentElement.classList.add('tv-mode');
+    $('#tv-hint-bar').hidden = false;
+    userPickedSource = true;
+    selectCard('source', 'phone');
+    showMenuStep(2);
+    void audio.init();
     showScreen('screen-menu');
     refreshChartLab();
     return;
@@ -1430,6 +1664,7 @@ function setupMenu(): void {
         }
         return;
       }
+      if (!ensureLookUnlocked(`bg:${t}`)) return;
       look.theme = t;
       saveLook();
       refreshLookUi();
@@ -1464,6 +1699,7 @@ function setupMenu(): void {
         }
         return;
       }
+      if (!ensureLookUnlocked(`skin:${t}`)) return;
       look.skin = t;
       saveLook();
       refreshLookUi();
@@ -1529,6 +1765,69 @@ function setupMenu(): void {
     quitGame();
   });
 
+  // P0：我的档案 / 体检返回
+  $('#btn-profile').addEventListener('click', () => {
+    renderProfile();
+    showScreen('screen-profile');
+  });
+  $('#btn-menu-back').addEventListener('click', () => {
+    showScreen('screen-check');
+    void runDeviceCheck();
+  });
+
+  // P0：成绩海报（Canvas 生成 PNG 下载）
+  $('#btn-share').addEventListener('click', () => {
+    if (!lastRun) {
+      showToast('先玩一局再分享～');
+      return;
+    }
+    const cv = drawSharePoster(lastRun.stats, {
+      grade: lastRun.grade, stars: lastRun.stars, levelName: lastRun.levelName,
+    });
+    const a = document.createElement('a');
+    a.download = `律动跑酷-${lastRun.levelName}.png`;
+    a.href = cv.toDataURL('image/png');
+    a.click();
+    showToast('成绩海报已保存 📸');
+  });
+
+  // P1：发起影子挑战（紧凑谱面 + 分数时间轴压进链接）
+  $('#btn-ghost-share').addEventListener('click', () => {
+    if (!lastRun || !currentChart) {
+      showToast('先玩一局再发起挑战～');
+      return;
+    }
+    const g = ghostFromRun(currentChart, ghostTrace, lastRun.stats, lastRun.grade);
+    const url = ghostShareUrl(g);
+    const ok = (): void => showToast('影子挑战链接已复制，发给好友来 PK 👻');
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(url).then(ok).catch(() =>
+        showToast('复制失败，请手动复制地址栏链接'));
+    } else {
+      showToast('当前浏览器不支持自动复制，请用新版浏览器');
+    }
+  });
+
+  // P1：影子挑战接受 / 忽略
+  $('#btn-ghost-accept').addEventListener('click', () => {
+    const g = pendingGhost;
+    if (!g) return;
+    pendingGhost = null;
+    ghostRival = g;
+    currentLevel = null; // 影子挑战按自由模式跑（同谱面）
+    $('#ghost-banner').hidden = true;
+    void startGame(chartFromGhost(g));
+  });
+  $('#btn-ghost-dismiss').addEventListener('click', () => {
+    pendingGhost = null;
+    refreshGhostBanner();
+  });
+
+  // 子屏统一返回（← 返回）
+  document.querySelectorAll<HTMLElement>('[data-back]').forEach((el) => {
+    el.addEventListener('click', () => goBack());
+  });
+
   // 遥控器/键盘
   window.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && game) quitGame();
@@ -1555,16 +1854,7 @@ function setupMenu(): void {
   );
 
   // TV APK 返回键钩子：1=已在网页内处理（退出对局/返回上屏），0=留给壳双击退出
-  (window as unknown as { __tvBack?: () => number }).__tvBack = () => {
-    if (game) {
-      quitGame();
-      return 1;
-    }
-    const active = document.querySelector('.screen.active')?.id ?? '';
-    if (active === 'screen-check' || active === 'screen-menu') return 0;
-    showScreen('screen-menu');
-    return 1;
-  };
+  (window as unknown as { __tvBack?: () => number }).__tvBack = () => goBack();
 }
 
 boot();

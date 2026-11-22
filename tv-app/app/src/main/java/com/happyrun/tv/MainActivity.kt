@@ -2,6 +2,9 @@ package com.happyrun.tv
 
 import android.annotation.SuppressLint
 import android.app.Activity
+import android.app.UiModeManager
+import android.content.Context
+import android.content.res.Configuration
 import android.os.Bundle
 import android.util.Log
 import android.view.KeyEvent
@@ -28,6 +31,7 @@ import android.widget.Toast
  *  - 常亮 + 全屏沉浸（电视息屏/状态栏不打扰）
  *  - 音频免手势自动播放（WebView 默认拦截，这里放开）
  *  - 遥控器返回键：单按 = 网页内返回/退出对局（window.__tvBack），双按 = 退出应用
+ *  - TV 形态识别（UiModeManager）：电视设备给网页加 &tv=1，网页跳体检 + 遥控提示 + 菜单等比放大
  *  - 断网兜底错误页（一键重载）
  *  - D-pad / OK 键原样交给 DOM，由网页 tvnav 做焦点导航
  */
@@ -37,8 +41,15 @@ class MainActivity : Activity() {
     private var lastBackAt = 0L
 
     // 线上游戏地址。游戏更新自动生效，无需重装 APK。
-    private val gameUrl =
-        "https://wbapp-yzfyjhdipy6i6cwc3v0zk2.app.workbuddy.host/?sharecode=T42CWLJYMM"
+    // TV 设备附加 &tv=1：网页据此进入大屏形态（跳体检 / 遥控提示条 / 菜单等比放大）。
+    private val gameUrl: String
+        get() = "https://wbapp-yzfyjhdipy6i6cwc3v0zk2.app.workbuddy.host/?sharecode=T42CWLJYMM" +
+            if (isTv()) "&tv=1" else ""
+
+    private fun isTv(): Boolean {
+        val uiModeManager = getSystemService(Context.UI_MODE_SERVICE) as UiModeManager
+        return uiModeManager.currentModeType == Configuration.UI_MODE_TYPE_TELEVISION
+    }
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {

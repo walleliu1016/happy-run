@@ -41,14 +41,32 @@
     <!-- ============ 屏幕 2：模式选择 ============ -->
     <section class="screen" id="screen-menu">
       <header class="topbar">
-        <div class="brand"><span class="brand-dot"></span>WarmingUp 律动跑酷</div>
-        <nav class="stepbar" aria-label="配置步骤">
-          <button class="step-pill active" data-step="1"><span class="step-num">1</span>玩法</button>
-          <button class="step-pill" data-step="2"><span class="step-num">2</span>识别</button>
-          <button class="step-pill" data-step="3"><span class="step-num">3</span>装扮</button>
-        </nav>
+        <div class="topbar-left">
+          <button class="btn btn-ghost btn-small back-btn" id="btn-menu-back">← 体检</button>
+          <div class="brand"><span class="brand-dot"></span>WarmingUp 律动跑酷</div>
+        </div>
+        <div class="topbar-right">
+          <nav class="stepbar" aria-label="配置步骤">
+            <button class="step-pill active" data-step="1"><span class="step-num">1</span>玩法</button>
+            <button class="step-pill" data-step="2"><span class="step-num">2</span>识别</button>
+            <button class="step-pill" data-step="3"><span class="step-num">3</span>装扮</button>
+          </nav>
+          <button class="star-chip" id="star-chip" title="星星：每局都赚，用来解锁装扮">⭐ <b id="star-count">0</b></button>
+          <button class="btn btn-ghost btn-small" id="btn-profile">我的档案</button>
+        </div>
       </header>
       <div class="menu-wrap">
+        <div class="ghost-banner" id="ghost-banner" hidden>
+          <div class="gb-icon">👻</div>
+          <div class="gb-text">
+            <b id="ghost-banner-title">影子挑战</b>
+            <span id="ghost-banner-sub">同谱面竞速，和 TA 比谁跑得远</span>
+          </div>
+          <div class="gb-actions">
+            <button class="btn btn-primary btn-small" id="btn-ghost-accept">接受挑战</button>
+            <button class="btn btn-ghost btn-small" id="btn-ghost-dismiss">忽略</button>
+          </div>
+        </div>
         <section class="mstep" data-step="1">
           <h2 class="display">这局怎么玩？</h2>
           <p class="lead">选玩法和强度，30 秒开跳。</p>
@@ -244,7 +262,10 @@
     <!-- ============ 屏幕 2.2：投屏到电视 ============ -->
     <section class="screen" id="screen-cast">
       <header class="topbar">
-        <div class="brand"><span class="brand-dot"></span>WarmingUp 律动跑酷</div>
+        <div class="topbar-left">
+          <button class="btn btn-ghost btn-small back-btn" data-back>← 返回</button>
+          <div class="brand"><span class="brand-dot"></span>WarmingUp 律动跑酷</div>
+        </div>
         <div class="topbar-sub">投屏到电视</div>
       </header>
       <div class="cast-wrap">
@@ -290,7 +311,10 @@
     <!-- ============ 屏幕 2.5：关卡选择（1:1 海报墙） ============ -->
     <section class="screen" id="screen-levels">
       <header class="topbar">
-        <div class="brand"><span class="brand-dot"></span>WarmingUp 律动跑酷</div>
+        <div class="topbar-left">
+          <button class="btn btn-ghost btn-small back-btn" data-back>← 返回</button>
+          <div class="brand"><span class="brand-dot"></span>WarmingUp 律动跑酷</div>
+        </div>
         <div class="topbar-sub">选择关卡</div>
       </header>
       <div class="levels-wrap">
@@ -298,6 +322,39 @@
         <div class="levels-grid" id="levels-grid"></div>
         <div class="btn-row">
           <button class="btn btn-ghost" id="btn-levels-back">返回菜单</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ 屏幕 2.8：我的档案（存档 / 成就 / 打卡 / 装扮商店） ============ -->
+    <section class="screen" id="screen-profile">
+      <header class="topbar">
+        <div class="topbar-left">
+          <button class="btn btn-ghost btn-small back-btn" data-back>← 返回</button>
+          <div class="brand"><span class="brand-dot"></span>我的档案</div>
+        </div>
+        <div class="topbar-sub">⭐ <b id="star-count-2">0</b></div>
+      </header>
+      <div class="profile-wrap">
+        <div class="profile-grid">
+          <div class="card pf-card">
+            <h3>📊 生涯统计</h3>
+            <div class="pf-stats" id="pf-stats"></div>
+          </div>
+          <div class="card pf-card">
+            <h3>📅 打卡日历</h3>
+            <div id="pf-cal"></div>
+            <div class="pf-streak" id="pf-streak"></div>
+          </div>
+          <div class="card pf-card">
+            <h3>🏆 成就墙</h3>
+            <div class="ach-grid" id="pf-ach"></div>
+          </div>
+          <div class="card pf-card">
+            <h3>👗 装扮商店</h3>
+            <p class="tip">玩局赚 ⭐，解锁新背景和新领操员。</p>
+            <div class="shop-grid" id="pf-shop"></div>
+          </div>
         </div>
       </div>
     </section>
@@ -320,6 +377,12 @@
           <div class="hud-timer" id="hud-timer">00:45</div>
           <div class="hud-hearts" id="hud-hearts">❤ 100</div>
           <div class="hud-phase" id="hud-phase" hidden><span class="phase-dot" id="phase-dot"></span><span id="phase-text">GREEN LIGHT</span></div>
+          <div class="ghost-bar" id="ghost-bar" hidden>
+            <div class="gb-row"><span class="gb-tag">👻 <b id="gb-name">影子</b></span><b class="gb-score" id="gb-rival">0</b></div>
+            <div class="gb-track"><i id="gb-rival-fill"></i></div>
+            <div class="gb-row you"><span class="gb-tag">🙋 你</span><b class="gb-score" id="gb-you">0</b></div>
+            <div class="gb-track"><i id="gb-you-fill"></i></div>
+          </div>
         </div>
         <div class="hud-right">
           <div class="hud-combo" id="hud-combo">0 <span>COMBO</span></div>
@@ -352,6 +415,7 @@
         <div class="card result-card">
           <div class="result-emoji" id="result-emoji">🎉</div>
           <h1 class="display" id="result-title">热身完成！</h1>
+          <div class="rs-record" id="rs-record" hidden>🔥 NEW RECORD</div>
           <div class="result-grade" id="rs-grade" data-g="S">S</div>
           <div class="result-stars" id="rs-stars">★★★★★</div>
           <div class="result-bars" id="rs-bars">
@@ -367,9 +431,16 @@
             <div class="stat"><div class="stat-v" id="rs-acc">0%</div><div class="stat-k">命中率</div></div>
             <div class="stat"><div class="stat-v" id="rs-kcal">0</div><div class="stat-k">千卡(估)</div></div>
           </div>
+          <div class="rs-extra" id="rs-extra" hidden>
+            <div class="rs-earn" id="rs-earn"></div>
+            <div class="rs-ach" id="rs-ach"></div>
+            <div class="rs-ghost" id="rs-ghost" hidden></div>
+          </div>
           <div class="btn-row center">
             <button class="btn btn-primary" id="btn-next-level" hidden>下一关 →</button>
             <button class="btn btn-primary" id="btn-again">再来一局</button>
+            <button class="btn btn-ghost" id="btn-share">📸 分享海报</button>
+            <button class="btn btn-ghost" id="btn-ghost-share">👻 发起影子挑战</button>
             <button class="btn btn-ghost" id="btn-menu">回主菜单</button>
           </div>
         </div>
@@ -396,6 +467,8 @@
     </div>
   </div>
   <div id="pose-hint" class="pose-hint" hidden></div>
+  <div id="toast" class="toast" hidden></div>
+  <div id="tv-hint-bar" class="tv-hint-bar" hidden>🎮 遥控器：方向键移动光标 · OK 选择 · 返回键 = 退出对局 / 回上页</div>
   <script type="module" src="./src/main.ts"></script>
 </body>
 </html>
