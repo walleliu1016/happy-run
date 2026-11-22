@@ -35,6 +35,8 @@ let scene: SceneMode = 'class';
 let source: InputSource = 'direct';
 /** 用户手动选过输入源后，体检结论不再覆盖其选择 */
 let userPickedSource = false;
+/** 跳过体检 = 不接受体检结论，别在背后改用户的选择 */
+let checkSkipped = false;
 let difficulty: Difficulty = 'normal';
 let game: Game | null = null;
 let padInput: GamepadInput | null = null;
@@ -398,19 +400,19 @@ async function runDeviceCheck(): Promise<void> {
   const perf = checkState.perf;
   if (cameraOk && perf === 'ok') {
     setVerdict('结论：本设备可直接跑体感（直连摄像头）！', 'good');
-    if (!userPickedSource) {
+    if (!userPickedSource && !checkSkipped) {
       source = 'direct';
       selectCard('source', 'direct');
     }
   } else if (cameraOk) {
     setVerdict('结论：摄像头可用但识别偏慢，建议「手机当识别器」获得流畅手感。', 'warn');
-    if (!userPickedSource) {
+    if (!userPickedSource && !checkSkipped) {
       source = 'phone';
       selectCard('source', 'phone');
     }
   } else {
     setVerdict('结论：本设备没有可用摄像头，请用「手机当识别器」。', 'warn');
-    if (!userPickedSource) {
+    if (!userPickedSource && !checkSkipped) {
       source = 'phone';
       selectCard('source', 'phone');
     }
@@ -418,25 +420,20 @@ async function runDeviceCheck(): Promise<void> {
   $<HTMLButtonElement>('#btn-enter').disabled = false;
 }
 
-// ---------- 菜单三步引导 ----------
-let menuStep = 1;
-
+// ---------- 菜单：单页滚动配置（App 式，即点即选，无步骤向导） ----------
+/** 滚动到指定配置区（1 玩法 / 2 识别 / 3 装备）；n <= 0 回顶部 */
 function showMenuStep(n: number): void {
-  menuStep = Math.min(3, Math.max(1, n));
-  document.querySelectorAll<HTMLElement>('.mstep').forEach((el) => {
-    el.hidden = Number(el.dataset.step ?? '0') !== menuStep;
-  });
-  document.querySelectorAll<HTMLElement>('.step-pill').forEach((el) => {
-    const s = Number(el.dataset.step ?? '0');
-    el.classList.toggle('active', s === menuStep);
-    el.classList.toggle('done', s < menuStep);
-    el.setAttribute('aria-current', s === menuStep ? 'step' : 'false');
-  });
   const wrap = $('.menu-wrap');
-  wrap.scrollTop = 0;
-  $<HTMLButtonElement>('#btn-prev-step').disabled = menuStep === 1;
-  $<HTMLButtonElement>('#btn-next-step').hidden = menuStep === 3;
-  if (menuStep === 3) refreshChartLab(); // 节奏工坊画布此前隐藏（宽度 0），切到本步补绘
+  if (n <= 0) {
+    wrap.scrollTo({ top: 0, behavior: 'smooth' });
+    return;
+  }
+  const target = document.querySelector<HTMLElement>(`.mstep[data-step="${n}"]`);
+  if (target) {
+    const top = target.getBoundingClientRect().top - wrap.getBoundingClientRect().top + wrap.scrollTop - 8;
+    wrap.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
+  }
+  if (n >= 3) refreshChartLab(); // 节奏工坊画布滚动到视口后按真实宽度补绘
 }
 
 function updateMenuSummary(): void {
@@ -1570,11 +1567,14 @@ function setupMenu(): void {
     refreshChartLab(); // 菜单可见后按真实宽度重绘画布
   });
   $('#btn-skip').addEventListener('click', () => {
+    checkSkipped = true; // 主动跳过 = 不接受体检结论
+    if (!userPickedSource) selectCard('source', 'direct'); // 复位默认，不被背后结论改掉
     void audio.init();
     showScreen('screen-menu');
     refreshChartLab();
   });
   $('#btn-back-check').addEventListener('click', () => {
+    checkSkipped = false; // 回体检重测 = 重新听体检结论
     showScreen('screen-check');
     void runDeviceCheck();
   });
@@ -1606,13 +1606,6 @@ function setupMenu(): void {
   refreshPadStatus();
   window.setInterval(refreshPadStatus, 1500);
 
-  // 三步引导：步骤切换 + 实时摘要
-  document.querySelectorAll<HTMLElement>('.step-pill').forEach((el) => {
-    el.addEventListener('click', () => showMenuStep(Number(el.dataset.step ?? '0')));
-  });
-  $('#btn-prev-step').addEventListener('click', () => showMenuStep(menuStep - 1));
-  $('#btn-next-step').addEventListener('click', () => showMenuStep(menuStep + 1));
-  showMenuStep(1);
   updateMenuSummary();
 
   // 定制音乐

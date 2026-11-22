@@ -46,11 +46,6 @@
           <div class="brand"><span class="brand-dot"></span>WarmingUp 律动跑酷</div>
         </div>
         <div class="topbar-right">
-          <nav class="stepbar" aria-label="配置步骤">
-            <button class="step-pill active" data-step="1"><span class="step-num">1</span>玩法</button>
-            <button class="step-pill" data-step="2"><span class="step-num">2</span>识别</button>
-            <button class="step-pill" data-step="3"><span class="step-num">3</span>装扮</button>
-          </nav>
           <button class="star-chip" id="star-chip" title="星星：每局都赚，用来解锁装扮">⭐ <b id="star-count">0</b></button>
           <button class="btn btn-ghost btn-small" id="btn-profile">我的档案</button>
         </div>
@@ -68,8 +63,7 @@
           </div>
         </div>
         <section class="mstep" data-step="1">
-          <h2 class="display">这局怎么玩？</h2>
-          <p class="lead">选玩法和强度，30 秒开跳。</p>
+          <h2 class="sec-title">🎮 这局怎么玩</h2>
           <h3 class="h2">玩给谁？</h3>
           <div class="mode-cards">
             <button class="mode-card selected" data-scene="class">
@@ -102,9 +96,8 @@
             </button>
           </div>
         </section>
-        <section class="mstep" data-step="2" hidden>
-          <h2 class="display">动作怎么识别？</h2>
-          <p class="lead">摄像头、手机、手柄——挑一个顺手的。</p>
+        <section class="mstep" data-step="2">
+          <h2 class="sec-title">📷 动作怎么识别</h2>
           <h3 class="h2">识别器用哪个？</h3>
           <div class="mode-cards src-cards">
             <button class="mode-card selected" data-source="direct">
@@ -135,9 +128,8 @@
             <button class="btn btn-ghost" id="btn-back-check">返回体检</button>
           </div>
         </section>
-        <section class="mstep" data-step="3" hidden>
-          <h2 class="display">配齐装备上场！</h2>
-          <p class="lead">换背景、换领操员，配首自己的歌。</p>
+        <section class="mstep" data-step="3">
+          <h2 class="sec-title">🎨 配齐装备上场</h2>
           <div class="card side-card" id="music-card">
             <h3>🎵 定制音乐</h3>
             <p class="lead small">选一首节奏感强的音乐（mp3/wav），自动识别 BPM 并把障碍铺在拍点上。</p>
@@ -252,8 +244,6 @@
       <footer class="menu-footer">
         <div class="menu-summary" id="menu-summary"></div>
         <div class="menu-actions">
-          <button class="btn btn-ghost btn-small" id="btn-prev-step">← 上一步</button>
-          <button class="btn btn-ghost btn-small" id="btn-next-step">下一步 →</button>
           <button class="btn btn-primary btn-big" id="btn-start">开始热身</button>
         </div>
       </footer>

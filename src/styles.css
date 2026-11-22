@@ -912,32 +912,15 @@ body {
   white-space: nowrap;
 }
 
-/* ========== 菜单三步引导（交互重构） ========== */
-.stepbar { display: flex; align-items: center; gap: clamp(6px, 0.8vw, 12px); }
-.step-pill {
-  display: flex; align-items: center; gap: 8px;
-  padding: 8px clamp(12px, 1.2vw, 20px); border-radius: 999px;
-  border: 1.5px solid rgba(0, 0, 0, 0.12); background: #fff; color: var(--ink-2);
-  font-family: var(--font); font-weight: 600; font-size: clamp(12px, 1.15vw, 17px);
-  cursor: pointer; transition: border-color 0.2s, color 0.2s, background 0.2s, transform 0.12s;
-}
-.step-pill:active { transform: scale(0.95); }
-.step-pill .step-num {
-  width: clamp(18px, 1.6vw, 24px); height: clamp(18px, 1.6vw, 24px); border-radius: 50%;
-  background: #e8e8ed; color: var(--ink-2); display: grid; place-items: center;
-  font-size: clamp(10px, 0.9vw, 13px); transition: background 0.25s, color 0.25s;
-}
-.step-pill.active { border-color: var(--blue); color: var(--blue); background: rgba(0, 113, 227, 0.08); }
-.step-pill.active .step-num { background: var(--blue); color: #fff; }
-.step-pill.done .step-num { background: rgba(0, 113, 227, 0.18); color: var(--blue); }
-
-/* 分步舞台：单列聚焦 + 入场动画 */
+/* ========== 菜单：单页滚动配置（App 式，即点即选） ========== */
 .menu-wrap { grid-template-columns: 1fr; max-width: 1180px; width: 100%; margin: 0 auto; }
-.mstep .display { margin-top: clamp(4px, 0.8vw, 12px); }
-.mstep:not([hidden]) { animation: mstep-in 0.36s cubic-bezier(0.2, 0.7, 0.3, 1) both; }
-@keyframes mstep-in {
-  from { opacity: 0; transform: translateY(18px); }
-  to { opacity: 1; transform: none; }
+.sec-title {
+  display: flex; align-items: center; gap: 12px;
+  font-size: clamp(20px, 2.1vw, 32px); font-weight: 700; letter-spacing: -0.6px;
+}
+.mstep + .mstep {
+  border-top: 1px solid rgba(0, 0, 0, 0.07);
+  padding-top: clamp(18px, 2.2vw, 34px);
 }
 
 /* 卡片选中徽章 + 按压反馈 */
@@ -952,7 +935,7 @@ body {
 @keyframes badge-pop { from { transform: scale(0); } to { transform: scale(1); } }
 .mode-card:active { transform: scale(0.97); }
 
-/* 常驻玻璃底栏：摘要 + 步骤导航 + 主行动 */
+/* 常驻玻璃底栏：摘要 + 主行动 */
 .menu-footer {
   display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;
   padding: clamp(10px, 1.1vw, 18px) clamp(16px, 3vw, 56px);
@@ -966,7 +949,7 @@ body {
   font-size: clamp(12px, 1vw, 15px); color: var(--ink-2); font-weight: 600;
   animation: badge-pop 0.3s cubic-bezier(0.2, 0.9, 0.3, 1.4) both;
 }
-.menu-actions { display: flex; gap: 12px; align-items: center; }
+.menu-actions { display: flex; gap: 12px; align-items: center; justify-content: flex-end; }
 .btn:disabled { opacity: 0.45; cursor: default; transform: none; }
 
 /* 折叠工具卡（判定校准 / 动作清单） */
@@ -989,12 +972,9 @@ body {
   .menu-footer { flex-direction: column; align-items: stretch; }
   .menu-actions { justify-content: space-between; }
   .menu-actions .btn { flex: 1 1 auto; }
-  .step-pill { padding: 5px 9px; gap: 4px; white-space: nowrap; }
   .topbar { flex-wrap: wrap; row-gap: 8px; }
-  .stepbar { width: 100%; justify-content: space-between; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .mstep:not([hidden]) { animation: none; }
   .mode-card.selected::after, .sum-chip { animation: none; }
 }
 
@@ -1023,17 +1003,19 @@ body {
 
 /* ===== 返回按钮 / 顶栏左右组 ===== */
 .topbar-left { display: flex; align-items: center; gap: 14px; min-width: 0; }
-.topbar-right { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; justify-content: flex-end; }
+.topbar-left .brand { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.topbar-right { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; justify-content: flex-end; flex: none; }
 .back-btn { flex: none; }
 
 /* ===== 星星货币徽章 ===== */
 .star-chip {
   border: none; cursor: pointer; font-family: var(--font);
+  display: inline-flex; align-items: center; gap: 5px; white-space: nowrap;
+  flex: none; /* 防被 topbar 挤压缩成两行 */
   background: linear-gradient(135deg, #fff3d6, #ffe3a1);
   color: #9a6b00; font-weight: 700;
   font-size: clamp(13px, 1.15vw, 19px);
   padding: 10px 18px; border-radius: 999px; min-height: 44px;
-  white-space: nowrap;
   box-shadow: 0 4px 14px rgba(255, 176, 32, 0.25);
 }
 .star-chip b { font-variant-numeric: tabular-nums; }
@@ -1171,6 +1153,9 @@ body {
 }
 .tv-mode .tv-hint-bar { font-size: clamp(16px, 1.3vw, 22px); padding: 14px 24px calc(14px + env(safe-area-inset-bottom)); }
 .tv-mode .btn, .tv-mode .mode-card { min-height: 52px; }
+/* 遥控提示条是 fixed，底栏/滚动区避让它 */
+.tv-mode .menu-footer { padding-bottom: calc(clamp(10px, 1.1vw, 18px) + 52px); }
+.tv-mode .menu-wrap, .tv-mode .profile-wrap { padding-bottom: calc(clamp(18px, 2.6vw, 44px) + 56px); }
 
 /* ===== 手机（≤720px）：紧凑横排卡（图标 + 名字/描述右置，描述两行截断），告别一卡铺满屏 ===== */
 @media (max-width: 720px) {
