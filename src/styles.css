@@ -997,3 +997,23 @@ body {
   .mstep:not([hidden]) { animation: none; }
   .mode-card.selected::after, .sum-chip { animation: none; }
 }
+
+/* ---------- TV / 遥控器焦点环（3 米可读：大、亮、带光晕） ---------- */
+.tv-focus {
+  outline: none;
+  transform: scale(1.05);
+  box-shadow:
+    0 0 0 3px rgba(255, 255, 255, 0.95),
+    0 0 0 9px rgba(255, 176, 32, 0.95),
+    0 0 32px rgba(255, 176, 32, 0.55),
+    0 18px 42px rgba(0, 0, 0, 0.35);
+  z-index: 6;
+  position: relative;
+}
+.tv-focus.btn-primary {
+  box-shadow:
+    0 0 0 3px rgba(255, 255, 255, 0.95),
+    0 0 0 9px rgba(255, 176, 32, 0.95),
+    0 0 40px rgba(255, 176, 32, 0.8),
+    0 18px 42px rgba(0, 0, 0, 0.4);
+}

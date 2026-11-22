@@ -12,5 +12,16 @@ refs/
 # 交付截图（工作区产物，只保留文档）
 deliverables/*.png
 
+# TV APK（Android 构建产物与本机配置；keystore 永不入库）
+tv-app/**/build/
+tv-app/.gradle/
+tv-app/local.properties
+*.jks
+*.p12
+*.keystore
+
+# 冒烟测试脚本（本机开发用，含绝对路径）
+shot-*.mjs
+
 # 系统杂物
 .DS_Store

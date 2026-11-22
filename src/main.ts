@@ -16,6 +16,7 @@ import { ActionClassifier } from './input/classifier';
 import { GamepadInput, connectedPadNames } from './input/gamepad';
 import { PoseInput } from './input/pose';
 import { Pairing, randomCode } from './input/remote';
+import { attachTvNav } from './input/tvnav';
 import type {
   Chart, ChartStyle, CoachSkin, Difficulty, GameAction, GameStats, InputSource,
   JudgeQuality, JudgeResult, SceneMode, SceneTheme, SectionKind,
@@ -1531,11 +1532,39 @@ function setupMenu(): void {
   // 遥控器/键盘
   window.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && game) quitGame();
-    if ((e.key === 'Enter' || e.key === ' ') && game) {
+    if (!game || e.repeat) return;
+    if (e.key === 'Enter' || e.key === ' ') {
       // 电视遥控确认键可当"跳"输入（备用交互）
       game.pushAction('jump', audio.now);
+      return;
     }
+    // 电视遥控方向键 → 动作映射（备用交互：没手机/手柄时也能玩）
+    const arrowMap: Record<string, GameAction> = {
+      ArrowUp: 'jump',
+      ArrowDown: 'squat',
+      ArrowLeft: 'left',
+      ArrowRight: 'right',
+    };
+    const act = arrowMap[e.key];
+    if (act) game.pushAction(act, audio.now);
   });
+
+  // TV/遥控器：菜单焦点导航（游戏中不抢按键；校准弹层时也放行）
+  attachTvNav(
+    () => game !== null || document.querySelector('#calib-overlay')?.classList.contains('show') === true,
+  );
+
+  // TV APK 返回键钩子：1=已在网页内处理（退出对局/返回上屏），0=留给壳双击退出
+  (window as unknown as { __tvBack?: () => number }).__tvBack = () => {
+    if (game) {
+      quitGame();
+      return 1;
+    }
+    const active = document.querySelector('.screen.active')?.id ?? '';
+    if (active === 'screen-check' || active === 'screen-menu') return 0;
+    showScreen('screen-menu');
+    return 1;
+  };
 }
 
 boot();
