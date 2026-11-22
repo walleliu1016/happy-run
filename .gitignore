@@ -1,0 +1,16 @@
+# 依赖与构建产物
+node_modules/
+dist/
+
+# 可再生资源（npm postinstall: scripts/setup-assets.mjs 会自动拷贝/下载）
+public/wasm/
+public/models/pose_landmarker_lite.task
+
+# 参考素材（调研视频抽帧，非构建输入）
+refs/
+
+# 交付截图（工作区产物，只保留文档）
+deliverables/*.png
+
+# 系统杂物
+.DS_Store

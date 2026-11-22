@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>WarmingUp 律动跑酷 · 体感版</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏃</text></svg>" />
+  <link rel="stylesheet" href="./src/styles.css" />
+</head>
+<body>
+  <div id="app">
+    <!-- ============ 屏幕 1：设备体检 ============ -->
+    <section class="screen active" id="screen-check">
+      <header class="topbar">
+        <div class="brand"><span class="brand-dot"></span>WarmingUp 律动跑酷</div>
+        <div class="topbar-sub">设备体检</div>
+      </header>
+      <div class="check-grid">
+        <div class="card camera-card">
+          <video id="check-video" autoplay playsinline muted></video>
+          <div class="camera-hint" id="camera-hint">正在启动摄像头…</div>
+        </div>
+        <div class="card check-panel">
+          <h1 class="display">先给设备<br/>做个 60 秒体检</h1>
+          <p class="lead">体检结果会告诉你：这台电视能不能直接跑体感，还是要用手机当识别器。</p>
+          <ul class="check-list" id="check-list">
+            <li data-key="wasm"><span class="ci"></span><span class="cl">WebAssembly 支持</span></li>
+            <li data-key="camera"><span class="ci"></span><span class="cl">摄像头（getUserMedia）</span></li>
+            <li data-key="perf"><span class="ci"></span><span class="cl">姿态识别帧率</span></li>
+            <li data-key="net"><span class="ci"></span><span class="cl">网络（双端配对需要）</span></li>
+          </ul>
+          <div class="verdict" id="verdict">体检进行中…</div>
+          <div class="btn-row">
+            <button class="btn btn-primary" id="btn-enter" disabled>进入游戏</button>
+            <button class="btn btn-ghost" id="btn-skip">跳过体检</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ 屏幕 2：模式选择 ============ -->
+    <section class="screen" id="screen-menu">
+      <header class="topbar">
+        <div class="brand"><span class="brand-dot"></span>WarmingUp 律动跑酷</div>
+        <nav class="stepbar" aria-label="配置步骤">
+          <button class="step-pill active" data-step="1"><span class="step-num">1</span>玩法</button>
+          <button class="step-pill" data-step="2"><span class="step-num">2</span>识别</button>
+          <button class="step-pill" data-step="3"><span class="step-num">3</span>装扮</button>
+        </nav>
+      </header>
+      <div class="menu-wrap">
+        <section class="mstep" data-step="1">
+          <h2 class="display">这局怎么玩？</h2>
+          <p class="lead">选玩法和强度，30 秒开跳。</p>
+          <h3 class="h2">玩给谁？</h3>
+          <div class="mode-cards">
+            <button class="mode-card selected" data-scene="class">
+              <div class="mode-icon">🏫</div>
+              <div class="mode-name">课堂模式</div>
+              <div class="mode-desc">大字口令 · 全班一起动<br/>不计分不问责，主打防困</div>
+            </button>
+            <button class="mode-card" data-scene="train">
+              <div class="mode-icon">🔥</div>
+              <div class="mode-name">训练模式</div>
+              <div class="mode-desc">动作判定 · 连击计分<br/>卡路里统计，跟练燃脂</div>
+            </button>
+          </div>
+          <h3 class="h2">难度（砖块密度）</h3>
+          <div class="mode-cards diff-cards">
+            <button class="mode-card" data-difficulty="easy">
+              <div class="mode-icon">🌱</div>
+              <div class="mode-name">轻松</div>
+              <div class="mode-desc">踩大拍为主<br/>适合初学/低年级</div>
+            </button>
+            <button class="mode-card selected" data-difficulty="normal">
+              <div class="mode-icon">🔥</div>
+              <div class="mode-name">标准</div>
+              <div class="mode-desc">主歌疏 · 副歌密<br/>完整卡点体验</div>
+            </button>
+            <button class="mode-card" data-difficulty="hard">
+              <div class="mode-icon">⚡</div>
+              <div class="mode-name">挑战</div>
+              <div class="mode-desc">全拍 + 反拍砖<br/>高能踩点冲分</div>
+            </button>
+          </div>
+        </section>
+        <section class="mstep" data-step="2" hidden>
+          <h2 class="display">动作怎么识别？</h2>
+          <p class="lead">摄像头、手机、手柄——挑一个顺手的。</p>
+          <h3 class="h2">识别器用哪个？</h3>
+          <div class="mode-cards src-cards">
+            <button class="mode-card selected" data-source="direct">
+              <div class="mode-icon">📷</div>
+              <div class="mode-name">本机摄像头</div>
+              <div class="mode-desc">摄像头在本设备上<br/>（电脑 / 电视直连 USB 摄像头 / 手机镜像玩法）</div>
+            </button>
+            <button class="mode-card" data-source="phone">
+              <div class="mode-icon">📱</div>
+              <div class="mode-name">手机当识别器</div>
+              <div class="mode-desc">手机扫码，对着人拍<br/>电视只管显示画面</div>
+            </button>
+            <button class="mode-card" data-source="pad">
+              <div class="mode-icon">🎮</div>
+              <div class="mode-name">手柄 · 键盘</div>
+              <div class="mode-desc">免摄像头免手机，Joy-Con 蓝牙直连即玩<br/>A跳 B踩 X挥 Y蹲 · 摇杆/十字键移动<br/><span id="pad-status" class="pad-status">未连接 · 蓝牙配对后自动识别</span></div>
+            </button>
+          </div>
+          <div class="card side-card" id="pair-card" hidden>
+            <h3>手机配对</h3>
+            <p class="lead small">用手机浏览器扫这个码（或手动输入网址），保持和电视同一 WiFi。</p>
+            <canvas id="qr-canvas" width="220" height="220"></canvas>
+            <div class="pair-url" id="pair-url">…</div>
+            <div class="pair-status" id="pair-status">等待手机连接…</div>
+          </div>
+          <div class="btn-row">
+            <button class="btn btn-ghost" id="btn-cast">📺 投屏到电视</button>
+            <button class="btn btn-ghost" id="btn-back-check">返回体检</button>
+          </div>
+        </section>
+        <section class="mstep" data-step="3" hidden>
+          <h2 class="display">配齐装备上场！</h2>
+          <p class="lead">换背景、换领操员，配首自己的歌。</p>
+          <div class="card side-card" id="music-card">
+            <h3>🎵 定制音乐</h3>
+            <p class="lead small">选一首节奏感强的音乐（mp3/wav），自动识别 BPM 并把障碍铺在拍点上。</p>
+            <input type="file" id="music-file" accept="audio/*" hidden />
+            <div class="btn-row music-btns">
+              <button class="btn btn-ghost btn-small" id="btn-music-pick">选择音乐文件</button>
+              <button class="btn btn-ghost btn-small" id="btn-music-clear">恢复默认节拍</button>
+            </div>
+            <div class="music-info" id="music-info" hidden>
+              <div class="music-name" id="music-name">—</div>
+              <div class="music-analysis" id="music-analysis">分析中…</div>
+              <div class="music-structure" id="music-structure">段落：—</div>
+              <div class="music-adjust">
+                <div class="adj-row">
+                  <span class="adj-label">BPM</span>
+                  <button class="adj-btn" data-adj="bpm:-1">−</button>
+                  <span class="adj-val" id="music-bpm">120</span>
+                  <button class="adj-btn" data-adj="bpm:1">＋</button>
+                </div>
+                <div class="adj-row">
+                  <span class="adj-label">节拍偏移</span>
+                  <button class="adj-btn" data-adj="off:-0.05">−</button>
+                  <span class="adj-val" id="music-off">0.00s</span>
+                  <button class="adj-btn" data-adj="off:0.05">＋</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- 节奏工坊：你给音乐 → 我出节奏（预览即实战谱面） -->
+            <div class="chart-lab">
+              <div class="lab-title">🎛 节奏工坊<span class="lab-sub" id="lab-sub">内置节拍 · 全身综合</span></div>
+              <div class="style-chips" id="style-chips">
+                <button class="style-chip selected" data-style="mix">全身综合</button>
+                <button class="style-chip" data-style="punch">拳击为主</button>
+                <button class="style-chip" data-style="jump">跳跃为主</button>
+                <button class="style-chip" data-style="cardio">燃脂冲刺</button>
+              </div>
+              <div class="style-desc" id="style-desc">五种动作均衡编排，全身都练到</div>
+              <canvas id="chart-preview" width="560" height="168"></canvas>
+              <div class="chart-stats" id="chart-stats">—</div>
+              <div class="btn-row music-btns">
+                <button class="btn btn-ghost btn-small" id="btn-chart-regen">↻ 重新生成</button>
+                <button class="btn btn-ghost btn-small" id="btn-chart-export">⤓ 导出谱面</button>
+              </div>
+              <p class="tip">横轴 = 音乐时间，5 行 = 5 种动作块（长条为冲刺段），金色块为 Gold Move。预览即实战：开局就按这张谱出块。</p>
+            </div>
+          </div>
+
+          <!-- 主题装扮：背景 + 领操员 -->
+          <div class="card side-card" id="look-card">
+            <h3>🎨 主题装扮</h3>
+            <p class="lead small">换背景、换领操员——喜欢的动画片场景和人物都能搬进热身场。</p>
+            <input type="file" id="bg-file" accept="image/*" hidden />
+            <input type="file" id="skin-file" accept="image/*" hidden />
+            <div class="look-row">
+              <div class="look-label">背景</div>
+              <div class="look-chips">
+                <button class="look-chip selected" data-bg="neon">🏜 霓虹峡谷</button>
+                <button class="look-chip" data-bg="space">🌌 星际漫游</button>
+                <button class="look-chip" data-bg="candy">🍬 糖果甜心</button>
+                <button class="look-chip" data-bg="forest">🌿 绿野仙踪</button>
+                <button class="look-chip" data-bg="custom">🖼 自定义图片</button>
+              </div>
+            </div>
+            <div class="look-row">
+              <div class="look-label">领操员</div>
+              <div class="look-chips">
+                <button class="look-chip selected" data-skin="mage">🧙 魔法师</button>
+                <button class="look-chip" data-skin="flame">🔥 烈焰勇士</button>
+                <button class="look-chip" data-skin="frost">❄️ 冰雪精灵</button>
+                <button class="look-chip" data-skin="nature">🌱 自然之灵</button>
+                <button class="look-chip" data-skin="candy">🎀 糖果甜心</button>
+                <button class="look-chip" data-skin="gold">⭐ 黄金战士</button>
+                <button class="look-chip" data-skin="custom">🖼 自定义人物</button>
+              </div>
+            </div>
+            <div class="btn-row music-btns">
+              <button class="btn btn-ghost btn-small" id="btn-look-reset">恢复默认装扮</button>
+            </div>
+            <p class="tip">装扮自动记住，下次打开还在；自定义图片只存本机浏览器。自定义人物会替代 3D 教练，动作口令和时间轴照常提示。</p>
+          </div>
+          <details class="card side-card tool-card">
+            <summary>⏱ 判定校准</summary>
+            <div class="tool-body">
+              <p class="lead small">总判定偏早/偏晚？拖动补偿，或跟节拍自动测一次。</p>
+              <div class="calib-row">
+                <input type="range" id="calib-range" min="-300" max="300" step="10" value="0" />
+                <span class="calib-val" id="calib-val">+0ms</span>
+              </div>
+              <div class="btn-row music-btns">
+                <button class="btn btn-ghost btn-small" id="btn-calib">跟节拍自动校准</button>
+              </div>
+              <p class="tip">摄像头识别偏晚 → 往右调（正值提前判定）。</p>
+            </div>
+          </details>
+          <details class="card side-card tool-card">
+            <summary>📋 动作清单</summary>
+            <div class="tool-body">
+            <ul class="action-list">
+              <li><b>跳</b> —— 高障碍，双脚离地</li>
+              <li><b>蹲</b> —— 低横杆，屈膝下压</li>
+              <li><b>挥臂</b> —— 击打鼓点，手过肩</li>
+              <li><b>踩踏</b> —— 节拍踏点，抬腿跺地</li>
+              <li><b>原地跑</b> —— 加速段，摆臂小跑</li>
+              <li><b>左移/右移</b> —— 闪避选边，身体侧移</li>
+            </ul>
+            <p class="tip">提示：站在电视前 2–3 米，全身进画面，光线别太暗。</p>
+            </div>
+          </details>
+        </section>
+      </div>
+      <footer class="menu-footer">
+        <div class="menu-summary" id="menu-summary"></div>
+        <div class="menu-actions">
+          <button class="btn btn-ghost btn-small" id="btn-prev-step">← 上一步</button>
+          <button class="btn btn-ghost btn-small" id="btn-next-step">下一步 →</button>
+          <button class="btn btn-primary btn-big" id="btn-start">开始热身</button>
+        </div>
+      </footer>
+    </section>
+
+    <!-- ============ 屏幕 2.2：投屏到电视 ============ -->
+    <section class="screen" id="screen-cast">
+      <header class="topbar">
+        <div class="brand"><span class="brand-dot"></span>WarmingUp 律动跑酷</div>
+        <div class="topbar-sub">投屏到电视</div>
+      </header>
+      <div class="cast-wrap">
+        <h2 class="h2">投屏到电视 · 一分钟上手</h2>
+        <p class="lead">游戏和视频不一样：视频是推个「播放地址」给电视自己播，游戏每一帧都跟着你的动作实时变，
+        没法推地址。所以只有两种玩法——<b>手机跑游戏、电视当大屏（无线镜像，电视零操作）</b>，
+        或<b>电视自己跑画面、手机当摄像头（一键投屏）</b>。</p>
+        <div class="cast-cards">
+          <div class="card cast-card cast-primary">
+            <h3>📱→📺 无线镜像（推荐 · 电视零操作）</h3>
+            <p class="lead small">就跟你把视频画面投到电视一样：用电视自带的「无线投屏 / 多屏互动 / AirPlay」
+            把手机画面同步到电视。电视<b>不用装 App、不用打开网页</b>，手机就是游戏机 + 摄像头。</p>
+            <ol class="cast-steps" id="cast-os-steps">
+              <li>打开手机的「无线投屏 / 屏幕镜像」，选你的电视</li>
+              <li>点下面按钮开始（横屏全屏 · 自动保持亮屏）</li>
+              <li>手机支在电视旁，摄像头对着人，直接开玩</li>
+            </ol>
+            <div class="btn-row">
+              <button class="btn btn-primary" id="btn-cast-mirror">开始镜像游玩</button>
+            </div>
+          </div>
+          <div class="card cast-card" id="cast-onetap">
+            <h3>📺 一键投屏（需 Chromecast 类电视）</h3>
+            <p class="lead small">像腾讯视频点投屏按钮一样：手机点一下，游戏画面直接推给电视跑，
+            手机自动变摄像头。需要电视支持 Chromecast / 内置 Chromecast——国内多数电视不支持，
+            连不上就用左边的无线镜像。</p>
+            <div class="btn-row">
+              <button class="btn btn-ghost" id="btn-cast-onetap">一键投屏到电视</button>
+            </div>
+            <div class="pair-status" id="cast-status">未投屏</div>
+          </div>
+          <div class="card cast-card">
+            <h3>🔗 备选：电视浏览器直开</h3>
+            <p class="lead small">电视自带浏览器直接打开本网址，进菜单选「手机当识别器」扫码配对，也能玩（适合没有投屏功能的电视）。</p>
+            <div class="btn-row">
+              <button class="btn btn-ghost" id="btn-cast-back">返回菜单</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ 屏幕 2.5：关卡选择（1:1 海报墙） ============ -->
+    <section class="screen" id="screen-levels">
+      <header class="topbar">
+        <div class="brand"><span class="brand-dot"></span>WarmingUp 律动跑酷</div>
+        <div class="topbar-sub">选择关卡</div>
+      </header>
+      <div class="levels-wrap">
+        <h2 class="h2 levels-title">CHOOSE YOUR CHALLENGE <span class="levels-title-cn">选择你的挑战</span></h2>
+        <div class="levels-grid" id="levels-grid"></div>
+        <div class="btn-row">
+          <button class="btn btn-ghost" id="btn-levels-back">返回菜单</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ 屏幕 3：游戏 ============ -->
+    <section class="screen" id="screen-game">
+      <canvas id="game-canvas"></canvas>
+      <div class="rotate-hint">📱 建议横屏体验更佳</div>
+      <div class="speed-lines" aria-hidden="true"><i class="sl sl-tl"></i><i class="sl sl-tr"></i><i class="sl sl-bl"></i><i class="sl sl-br"></i></div>
+      <div class="hud-progress" id="hud-progress"><span class="hp-dot hp-dot-l"></span><div class="hp-fill" id="hp-fill"></div><span class="hp-dot hp-dot-r"></span></div>
+      <div class="cue" id="cue" hidden>
+        <div class="cue-disc" id="cue-disc"><span id="cue-glyph">🦘</span></div>
+        <div class="cue-text">
+          <div class="cue-en" id="cue-en">JUMP!</div>
+          <div class="cue-cn" id="cue-cn">跳！</div>
+        </div>
+      </div>
+      <div class="game-hud" id="game-hud">
+        <div class="hud-left">
+          <div class="hud-timer" id="hud-timer">00:45</div>
+          <div class="hud-hearts" id="hud-hearts">❤ 100</div>
+          <div class="hud-phase" id="hud-phase" hidden><span class="phase-dot" id="phase-dot"></span><span id="phase-text">GREEN LIGHT</span></div>
+        </div>
+        <div class="hud-right">
+          <div class="hud-combo" id="hud-combo">0 <span>COMBO</span></div>
+          <div class="hud-mult" id="hud-mult" style="display:none">×1</div>
+          <div class="hud-score" id="hud-score">0</div>
+          <div class="hud-kcal" id="hud-kcal">0 kcal</div>
+          <button class="btn btn-ghost btn-small" id="btn-quit">退出</button>
+        </div>
+      </div>
+      <div class="timeline" id="timeline">
+        <div class="timeline-track" id="timeline-track"></div>
+        <div class="timeline-line" id="timeline-line"><span>动作线</span></div>
+      </div>
+      <div class="coach-bubble" id="coach-bubble"></div>
+      <div class="coach-label" id="coach-label">麦吉教练 · 动作示范</div>
+      <div class="action-banner" id="action-banner"><span id="action-text">准备</span></div>
+      <div class="judge-float" id="judge-float"></div>
+      <div class="combo-banner" id="combo-banner"></div>
+      <div class="miss-flash" id="miss-flash"></div>
+      <div class="countdown" id="countdown"></div>
+      <div class="pip-wrap" id="pip-wrap">
+        <video id="game-video" class="pip-video" autoplay playsinline muted></video>
+        <canvas id="pose-overlay"></canvas>
+      </div>
+    </section>
+
+    <!-- ============ 屏幕 4：结算 ============ -->
+    <section class="screen" id="screen-result">
+      <div class="result-wrap">
+        <div class="card result-card">
+          <div class="result-emoji" id="result-emoji">🎉</div>
+          <h1 class="display" id="result-title">热身完成！</h1>
+          <div class="result-grade" id="rs-grade" data-g="S">S</div>
+          <div class="result-stars" id="rs-stars">★★★★★</div>
+          <div class="result-bars" id="rs-bars">
+            <div class="rs-bar" data-q="perfect"><span class="rs-bar-k">PERFECT</span><span class="rs-bar-track"><i></i></span><b>0</b></div>
+            <div class="rs-bar" data-q="great"><span class="rs-bar-k">GREAT</span><span class="rs-bar-track"><i></i></span><b>0</b></div>
+            <div class="rs-bar" data-q="good"><span class="rs-bar-k">GOOD</span><span class="rs-bar-track"><i></i></span><b>0</b></div>
+            <div class="rs-bar" data-q="miss"><span class="rs-bar-k">MISS</span><span class="rs-bar-track"><i></i></span><b>0</b></div>
+          </div>
+          <div class="result-break" id="rs-break">—</div>
+          <div class="result-stats">
+            <div class="stat"><div class="stat-v" id="rs-score">0</div><div class="stat-k">得分</div></div>
+            <div class="stat"><div class="stat-v" id="rs-combo">0</div><div class="stat-k">最大连击</div></div>
+            <div class="stat"><div class="stat-v" id="rs-acc">0%</div><div class="stat-k">命中率</div></div>
+            <div class="stat"><div class="stat-v" id="rs-kcal">0</div><div class="stat-k">千卡(估)</div></div>
+          </div>
+          <div class="btn-row center">
+            <button class="btn btn-primary" id="btn-next-level" hidden>下一关 →</button>
+            <button class="btn btn-primary" id="btn-again">再来一局</button>
+            <button class="btn btn-ghost" id="btn-menu">回主菜单</button>
+          </div>
+        </div>
+      </div>
+    </section>
+    <!-- 关卡过场卡（黑底速度线 + 中英双语，1:1） -->
+    <div class="level-intro" id="level-intro" hidden>
+      <div class="speed-lines light" aria-hidden="true"><i class="sl sl-tl"></i><i class="sl sl-tr"></i><i class="sl sl-bl"></i><i class="sl sl-br"></i></div>
+      <div class="li-lv" id="li-lv">LV1</div>
+      <div class="li-en" id="li-en">YOU WILL HAVE TO GO THROUGH 4 CHALLENGING LEVELS</div>
+      <div class="li-cn" id="li-cn">你将完成 4 个挑战关卡</div>
+    </div>
+    <!-- 判定校准弹层 -->
+    <div class="calib-overlay" id="calib-overlay">
+      <div class="card calib-modal">
+        <h3>⏱ 跟节拍校准</h3>
+        <p class="lead small">听到「滴」声就点大按钮（或按空格），尽量踩在拍点上，共 8 拍。</p>
+        <button class="calib-tap" id="calib-tap">点我打拍</button>
+        <div class="calib-status" id="calib-status">准备…</div>
+        <div class="btn-row center">
+          <button class="btn btn-ghost btn-small" id="calib-close">完成/关闭</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div id="pose-hint" class="pose-hint" hidden></div>
+  <script type="module" src="./src/main.ts"></script>
+</body>
+</html>
