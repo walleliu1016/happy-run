@@ -232,12 +232,18 @@ function serveStatic(pathname, res) {
       // SPA 兜底
       fs.readFile(path.join(DIST, 'index.html'), (e2, idx) => {
         if (e2) { res.writeHead(404); return res.end('not found'); }
-        res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
+        res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-cache' });
         res.end(idx);
       });
       return;
     }
-    res.writeHead(200, { 'content-type': MIME[path.extname(file)] || 'application/octet-stream' });
+    const ext = path.extname(file);
+    // 缓存契约：HTML 永远协商最新（no-cache=每次 revalidate 304）；
+    // vite 内容 hash 资源可永久缓存；wasm/models 等固定名资源缓存 7 天
+    let cache = 'public, max-age=604800';
+    if (ext === '.html') cache = 'no-cache';
+    else if (rel.startsWith('/assets/')) cache = 'public, max-age=31536000, immutable';
+    res.writeHead(200, { 'content-type': MIME[ext] || 'application/octet-stream', 'cache-control': cache });
     res.end(buf);
   });
 }

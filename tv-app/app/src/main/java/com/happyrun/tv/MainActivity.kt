@@ -42,8 +42,10 @@ class MainActivity : Activity() {
 
     // 线上游戏地址。游戏更新自动生效，无需重装 APK。
     // TV 设备附加 &tv=1：网页据此进入大屏形态（跳体检 / 遥控提示条 / 菜单等比放大）。
+    // &v= 版本戳：升级安装后 URL 变化，旧 WebView 缓存自然失效（缓存键不同）；
+    // 服务端对 HTML 发 no-cache 头，之后每次启动都协商到最新版，大资源仍走缓存。
     private val gameUrl: String
-        get() = "https://wbapp-yzfyjhdipy6i6cwc3v0zk2.app.workbuddy.host/?sharecode=T42CWLJYMM" +
+        get() = "https://wbapp-yzfyjhdipy6i6cwc3v0zk2.app.workbuddy.host/?sharecode=T42CWLJYMM&v=1.1" +
             if (isTv()) "&tv=1" else ""
 
     private fun isTv(): Boolean {
