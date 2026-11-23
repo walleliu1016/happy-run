@@ -206,6 +206,7 @@ const $ = <T extends HTMLElement>(sel: string): T => {
 function showScreen(id: string): void {
   document.querySelectorAll('.screen').forEach((s) => s.classList.remove('active'));
   $(`#${id}`).classList.add('active');
+  if (id === 'screen-menu') renderLevels(); // PB/星星可能更新，海报徽章刷一遍
 }
 
 // ---------- Toast / 星星 / 返回 ----------
@@ -242,6 +243,10 @@ function goBack(): number {
   if (active === 'screen-check') {
     checkSkipped = true; // 离开体检 = 不接受迟到结论
     showScreen('screen-menu');
+    return 1;
+  }
+  if (active === 'screen-prepare') {
+    showScreen('screen-menu'); // 回海报墙重选关卡
     return 1;
   }
   if (active === 'screen-menu') return 0;
@@ -432,23 +437,6 @@ async function runDeviceCheck(): Promise<void> {
 
 // ---------- 菜单：单页滚动配置（App 式，即点即选，无步骤向导） ----------
 /** 滚动到指定配置区（1 玩法 / 2 识别 / 3 装备）；n <= 0 回顶部 */
-/** 滚动到指定配置区（1 玩法 / 2 识别 / 3 装备）；n <= 0 回顶部；instant 跳过平滑动画（boot 初始定位用） */
-function showMenuStep(n: number, instant = false): void {
-  const wrap = $('.menu-wrap');
-  const behavior: ScrollBehavior = instant ? 'auto' : 'smooth';
-  if (n <= 0) {
-    wrap.scrollTo({ top: 0, behavior });
-    return;
-  }
-  const target = document.querySelector<HTMLElement>(`.mstep[data-step="${n}"]`);
-  if (target) {
-    // zoom（tv-mode 1.18 加在 .screen 上）下 rect 是缩放后坐标，除回布局像素再加 scrollTop
-    const zoom = parseFloat(getComputedStyle(wrap.closest('.screen') ?? wrap).zoom) || 1;
-    const top = (target.getBoundingClientRect().top - wrap.getBoundingClientRect().top) / zoom + wrap.scrollTop - 8;
-    wrap.scrollTo({ top: Math.max(0, top), behavior });
-  }
-  if (n >= 3) refreshChartLab(); // 节奏工坊画布滚动到视口后按真实宽度补绘
-}
 
 function updateMenuSummary(): void {
   const sceneTxt = scene === 'class' ? '🏫 课堂模式' : '🔥 训练模式';
@@ -697,6 +685,8 @@ function buildCurrentChart(): Chart {
 }
 
 function refreshChartLab(): void {
+  const cv = $<HTMLCanvasElement>('#chart-preview');
+  if (!cv.offsetParent) return; // 不可见（不在准备屏）就不重绘
   labChart = buildCurrentChart();
   renderChartPreview(labChart);
   const st = chartStats(labChart);
@@ -918,7 +908,17 @@ function levelGameOpts(def: LevelDef): GameOpts {
   };
 }
 
-/** 海报墙：5 关 + 自由练习 */
+/** 当前待开玩的关卡（海报墙点选）；null = 自由练习 */
+let pendingLevel: LevelDef | null = null;
+
+/** 海报 PB 徽章（有记录才显示） */
+function levelBestHtml(key: string): string {
+  const rec = profile.levels[key];
+  if (!rec?.best) return '';
+  return `<div class="lp-best">⭐ ${rec.stars} · ${rec.best.toLocaleString()}${rec.cleared ? ' ✓' : ''}</div>`;
+}
+
+/** 海报墙：5 关 + 自由练习（首屏；点选 → 开玩准备） */
 function renderLevels(): void {
   const grid = $('#levels-grid');
   const posters = LEVELS.map((lv) => `
@@ -929,6 +929,7 @@ function renderLevels(): void {
       <div class="lp-name">${lv.nameEn}</div>
       <div class="lp-sub">${lv.poster.sub}</div>
       <div class="lp-cn">${lv.nameCn}</div>
+      ${levelBestHtml(lv.id)}
     </button>`).join('');
   grid.innerHTML = `${posters}
     <button class="level-poster free" data-level="">
@@ -938,18 +939,32 @@ function renderLevels(): void {
       <div class="lp-name">FREE PLAY</div>
       <div class="lp-sub">工坊谱面 · 自由练习</div>
       <div class="lp-cn">你的音乐你的节奏</div>
+      ${levelBestHtml('free')}
     </button>`;
   grid.querySelectorAll<HTMLElement>('.level-poster').forEach((el) => {
     el.addEventListener('click', () => {
       const id = el.dataset.level ?? '';
-      const def = LEVELS.find((l) => l.id === id);
-      if (def) void startLevel(def);
-      else {
-        currentLevel = null;
-        void startGame();
-      }
+      pendingLevel = LEVELS.find((l) => l.id === id) ?? null;
+      renderPrepareHead();
+      showScreen('screen-prepare');
+      refreshChartLab(); // 节奏工坊画布按真实宽度补绘
     });
   });
+}
+
+/** 开玩准备：所选关卡信息条 */
+function renderPrepareHead(): void {
+  $('#prepare-sub').textContent = pendingLevel ? `${pendingLevel.lv} · ${pendingLevel.nameCn}` : '自由练习';
+  const rec = profile.levels[pendingLevel?.id ?? 'free'];
+  const best = rec?.best
+    ? `<div class="ph-best">⭐ ${rec.stars} · 最佳 ${rec.best.toLocaleString()}${rec.cleared ? ' · 已通关' : ''}</div>`
+    : '<div class="ph-best new">首次挑战 · 加油！</div>';
+  const head = pendingLevel
+    ? `<div class="ph-emoji" style="--lp-accent:${pendingLevel.poster.accent}">${pendingLevel.poster.emoji}</div>
+       <div class="ph-text"><b>${pendingLevel.lv} · ${pendingLevel.nameCn}</b><span>${pendingLevel.nameEn} · ${pendingLevel.poster.sub}</span></div>`
+    : `<div class="ph-emoji" style="--lp-accent:#0071e3">🎛</div>
+       <div class="ph-text"><b>FREE · 自由练习</b><span>工坊谱面 · 你的音乐你的节奏</span></div>`;
+  $('#prepare-head').innerHTML = `${head}${best}`;
 }
 
 /** 双语过场卡（黑底 + 速度线，到时自动收起） */
@@ -1546,18 +1561,16 @@ function boot(): void {
   refreshGhostBanner();
 
   if (role === 'cast' && code) {
-    // 一键投屏接收端：直接以「手机当识别器」进菜单（固定配对码，发起端手机自动连上）
+    // 一键投屏接收端：直接以「手机当识别器」进海报墙（固定配对码，发起端手机自动连上）
     castCode = code;
     userPickedSource = true;
     selectCard('source', 'phone');
     void audio.init();
     showScreen('screen-menu');
-    refreshChartLab();
-    showMenuStep(2, true); // 布局稳定后瞬时定位到「识别」区（投屏连接状态可见）
     return;
   }
 
-  // TV 形态：跳过体检直达菜单；默认手机当识别器（扫码配对，摄像头对着人）
+  // TV 形态：跳过体检直达海报墙；默认手机当识别器（进准备屏扫码配对，摄像头对着人）
   if (isTvDevice()) {
     document.documentElement.classList.add('tv-mode');
     $('#tv-hint-bar').hidden = false;
@@ -1565,14 +1578,11 @@ function boot(): void {
     selectCard('source', 'phone');
     void audio.init();
     showScreen('screen-menu');
-    refreshChartLab();
-    showMenuStep(2, true); // 布局稳定后瞬时定位到「识别」区（配对卡可见）
     return;
   }
 
-  // App 首屏 = 菜单配置页（体检已是工具，不在启动路径上；不启动摄像头）
+  // App 首屏 = 海报墙选关（体检已是工具，不在启动路径上；不启动摄像头）
   showScreen('screen-menu');
-  refreshChartLab();
 }
 
 function setupMenu(): void {
@@ -1751,11 +1761,14 @@ function setupMenu(): void {
       el.classList.remove('connected');
       return;
     }
-    // 1:1 流程：先选关（海报墙）
-    renderLevels();
-    showScreen('screen-levels');
+    // 流程：海报墙选关 → 此处配置完 → 开玩
+    if (pendingLevel) {
+      void startLevel(pendingLevel);
+    } else {
+      currentLevel = null;
+      void startGame();
+    }
   });
-  $('#btn-levels-back').addEventListener('click', () => showScreen('screen-menu'));
 
   // 游戏退出
   $('#btn-quit').addEventListener('click', quitGame);

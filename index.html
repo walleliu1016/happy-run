@@ -64,6 +64,22 @@
             <button class="btn btn-ghost btn-small" id="btn-ghost-dismiss">忽略</button>
           </div>
         </div>
+        <h2 class="h2 levels-title">CHOOSE YOUR CHALLENGE <span class="levels-title-cn">选择你的挑战</span></h2>
+        <div class="levels-grid" id="levels-grid"></div>
+      </div>
+    </section>
+
+    <!-- ============ 屏幕 2：开玩准备（点关卡后进：模式 / 识别 / 装备） ============ -->
+    <section class="screen" id="screen-prepare">
+      <header class="topbar">
+        <div class="topbar-left">
+          <button class="btn btn-ghost btn-small back-btn" data-back>← 返回</button>
+          <div class="brand"><span class="brand-dot"></span>WarmingUp 律动跑酷</div>
+        </div>
+        <div class="topbar-sub" id="prepare-sub">开玩准备</div>
+      </header>
+      <div class="menu-wrap">
+        <div class="prepare-head card" id="prepare-head"></div>
         <section class="mstep" data-step="1">
           <h2 class="sec-title">🎮 这局怎么玩</h2>
           <h3 class="h2">玩给谁？</h3>
@@ -246,7 +262,7 @@
       <footer class="menu-footer">
         <div class="menu-summary" id="menu-summary"></div>
         <div class="menu-actions">
-          <button class="btn btn-primary btn-big" id="btn-start">开始热身</button>
+          <button class="btn btn-primary btn-big" id="btn-start">开始挑战</button>
         </div>
       </footer>
     </section>
@@ -296,24 +312,6 @@
               <button class="btn btn-ghost" id="btn-cast-back">返回菜单</button>
             </div>
           </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- ============ 屏幕 2.5：关卡选择（1:1 海报墙） ============ -->
-    <section class="screen" id="screen-levels">
-      <header class="topbar">
-        <div class="topbar-left">
-          <button class="btn btn-ghost btn-small back-btn" data-back>← 返回</button>
-          <div class="brand"><span class="brand-dot"></span>WarmingUp 律动跑酷</div>
-        </div>
-        <div class="topbar-sub">选择关卡</div>
-      </header>
-      <div class="levels-wrap">
-        <h2 class="h2 levels-title">CHOOSE YOUR CHALLENGE <span class="levels-title-cn">选择你的挑战</span></h2>
-        <div class="levels-grid" id="levels-grid"></div>
-        <div class="btn-row">
-          <button class="btn btn-ghost" id="btn-levels-back">返回菜单</button>
         </div>
       </div>
     </section>
