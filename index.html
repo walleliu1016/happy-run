@@ -69,6 +69,56 @@
       </div>
     </section>
 
+    <!-- ============ 屏幕 2.2：线上 PK 对战（匹配 → 同关竞速） ============ -->
+    <section class="screen" id="screen-pk">
+      <header class="topbar">
+        <div class="topbar-left">
+          <button class="btn btn-ghost btn-small" id="btn-pk-back">← 返回</button>
+          <div class="brand"><span class="brand-dot"></span>⚡ PK 对战</div>
+        </div>
+        <div class="topbar-sub" id="pk-online">在线 0 人</div>
+      </header>
+      <div class="prepare-wrap">
+        <div class="card pk-card" id="pk-idle">
+          <div class="pk-hero">⚡</div>
+          <h2>线上 PK 关卡</h2>
+          <p class="lead small">匹配对手，同关卡同时开跑，实时看到对方进度，比谁分高！<br>在线没人时自动配影子对手（按真人成绩节奏跑）。</p>
+          <label class="opt-label" for="pk-name">我的昵称</label>
+          <input id="pk-name" class="pk-name-input" maxlength="12" placeholder="输入昵称" autocomplete="off">
+          <div class="btn-row center">
+            <button class="btn btn-primary" id="btn-pk-go">开始匹配 ⚡</button>
+          </div>
+        </div>
+        <div class="card pk-card" id="pk-matching" hidden>
+          <div class="pk-spinner">⚡</div>
+          <h2 id="pk-match-title">匹配对手中…</h2>
+          <p class="lead" id="pk-match-sub">正在寻找在线玩家 · 0s</p>
+          <div class="btn-row center">
+            <button class="btn btn-ghost" id="btn-pk-cancel">取消</button>
+          </div>
+        </div>
+        <div class="card pk-card" id="pk-matched" hidden>
+          <h2>对手已就位！</h2>
+          <div class="pk-vs">
+            <div class="pk-side">
+              <div class="pk-side-name" id="pk-me-name">我</div>
+              <div class="pk-side-tag">YOU</div>
+            </div>
+            <div class="pk-v">VS</div>
+            <div class="pk-side">
+              <div class="pk-side-name" id="pk-opp-name">对手</div>
+              <div class="pk-side-tag" id="pk-opp-tag">LIVE</div>
+            </div>
+          </div>
+          <p class="lead small" id="pk-map-info">本局地图：—</p>
+          <p class="lead small pk-count" id="pk-count">3 秒后开跑…</p>
+          <div class="btn-row center">
+            <button class="btn btn-ghost" id="btn-pk-abort">取消</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <!-- ============ 屏幕 2.5：开玩准备（只留跟这局有关的选择） ============ -->
     <section class="screen" id="screen-prepare">
       <header class="topbar">

@@ -19,6 +19,9 @@ import {
 import {
   chartFromGhost, ghostFromRun, ghostScoreAt, ghostShareUrl, parseGhostHash, type GhostData,
 } from './engine/ghost';
+import {
+  pkJoin, pkLeave, pkOnline, pkResult, pkSync, type PkMatch, type PkOpponent, type PkResult,
+} from './pk';
 import { ActionClassifier } from './input/classifier';
 import { GamepadInput, connectedPadNames } from './input/gamepad';
 import { PoseInput } from './input/pose';
@@ -254,6 +257,11 @@ function goBack(): number {
   }
   if (active === 'screen-prepare') {
     showScreen('screen-menu'); // 回海报墙重选关卡
+    return 1;
+  }
+  if (active === 'screen-pk') {
+    cleanupPk();
+    showScreen('screen-menu');
     return 1;
   }
   if (active === 'screen-menu') return 0;
@@ -918,6 +926,11 @@ function levelGameOpts(def: LevelDef): GameOpts {
 /** 当前待开玩的关卡（海报墙点选）；null = 自由练习 */
 let pendingLevel: LevelDef | null = null;
 
+// ---------- 线上 PK 对战 ----------
+let pkMatch: PkMatch | null = null;
+let pkOpp: PkOpponent | null = null;
+let lastPkSyncAt = 0;
+
 /** 海报 PB 徽章（有记录才显示） */
 function levelBestHtml(key: string): string {
   const rec = profile.levels[key];
@@ -947,9 +960,21 @@ function renderLevels(): void {
       <div class="lp-sub">工坊谱面 · 自由练习</div>
       <div class="lp-cn">你的音乐你的节奏</div>
       ${levelBestHtml('free')}
+    </button>
+    <button class="level-poster pk" data-pk>
+      <div class="lp-bg"></div>
+      <div class="lp-emoji">⚡</div>
+      <div class="lp-lv">PK</div>
+      <div class="lp-name">ONLINE BATTLE</div>
+      <div class="lp-sub">线上对战 · 同关竞速</div>
+      <div class="lp-cn">实时 PK 关卡</div>
     </button>`;
   grid.querySelectorAll<HTMLElement>('.level-poster').forEach((el) => {
     el.addEventListener('click', () => {
+      if (el.dataset.pk !== undefined) {
+        pkEnter();
+        return;
+      }
       const id = el.dataset.level ?? '';
       pendingLevel = LEVELS.find((l) => l.id === id) ?? null;
       renderPrepareHero();
@@ -957,6 +982,81 @@ function renderLevels(): void {
       refreshChartLab(); // 节奏工坊画布按真实宽度补绘
     });
   });
+}
+
+// ---------- 线上 PK 对战：匹配 → 同关竞速 → 结算胜负 ----------
+let pkSeq = 0;
+
+function pkShowPanel(which: 'idle' | 'matching' | 'matched'): void {
+  $('#pk-idle').hidden = which !== 'idle';
+  $('#pk-matching').hidden = which !== 'matching';
+  $('#pk-matched').hidden = which !== 'matched';
+}
+
+function cleanupPk(): void {
+  pkSeq++;
+  void pkLeave(pkMatch);
+  pkMatch = null;
+  pkOpp = null;
+}
+
+async function pkEnter(): Promise<void> {
+  cleanupPk();
+  showScreen('screen-pk');
+  pkShowPanel('idle');
+  const input = $<HTMLInputElement>('#pk-name');
+  if (!input.value) {
+    input.value = localStorage.getItem('wu.pkname') || `玩家${Math.floor(1000 + Math.random() * 9000)}`;
+  }
+  void pkOnline().then((n) => { $('#pk-online').textContent = `在线 ${n} 人`; }).catch(() => {});
+}
+
+async function pkGo(): Promise<void> {
+  cleanupPk();
+  const seq = pkSeq;
+  const input = $<HTMLInputElement>('#pk-name');
+  const name = input.value.trim() || '玩家';
+  input.value = name;
+  localStorage.setItem('wu.pkname', name);
+  pkShowPanel('matching');
+  $('#pk-match-title').textContent = '匹配对手中…';
+  try {
+    const match = await pkJoin(name, LEVELS.map((l) => l.id), (sec) => {
+      $('#pk-match-sub').textContent = `正在寻找在线玩家 · ${sec}s`;
+    });
+    if (seq !== pkSeq) {
+      void pkLeave(match); // 已取消
+      return;
+    }
+    pkMatch = match;
+    pkOpp = match.opponent;
+    $('#pk-me-name').textContent = name;
+    $('#pk-opp-name').textContent = match.opponent.name;
+    $('#pk-opp-tag').textContent = match.shadow ? '影子' : 'LIVE';
+    const def = LEVELS.find((l) => l.id === match.level);
+    $('#pk-map-info').textContent = `本局地图：${def ? `${def.lv} · ${def.nameCn}` : match.level} · 标准难度`;
+    pkShowPanel('matched');
+    for (let i = 3; i > 0; i--) {
+      $('#pk-count').textContent = `${i} 秒后开跑…`;
+      await delay(1000);
+      if (seq !== pkSeq) return; // 中途取消
+    }
+    await pkStartRun();
+  } catch {
+    if (seq === pkSeq) {
+      pkShowPanel('idle');
+      showToast('匹配失败，请检查网络后重试');
+    }
+  }
+}
+
+async function pkStartRun(): Promise<void> {
+  if (!pkMatch) return;
+  pkOpp = pkMatch.opponent;
+  const def = LEVELS.find((l) => l.id === pkMatch!.level) ?? LEVELS[0];
+  currentLevel = def;
+  await showIntroCard(def.introEn, def.introCn, def.lv, 2600);
+  await startGame(buildLevelChart(def, 'normal', pkMatch!.seed), levelGameOpts(def));
 }
 
 /** 开玩准备：关卡横幅（海报视觉延续）；工坊只属于自由练习 */
@@ -1015,7 +1115,13 @@ async function startLevel(def: LevelDef): Promise<void> {
 /** 再来一局（关卡模式：同关重开；影子挑战：同谱面重赛，不重看过场） */
 function restartCurrent(): void {
   const rival = ghostRival;
+  const wasPk = pkMatch;
   quitGame();
+  if (wasPk) {
+    // PK 再来一局 = 重新匹配新对手
+    void pkEnter().then(() => pkGo());
+    return;
+  }
   if (currentLevel) {
     void startGame(buildLevelChart(currentLevel, difficulty, chartSeed), levelGameOpts(currentLevel));
   } else if (rival) {
@@ -1047,9 +1153,10 @@ async function startGame(chartOverride?: Chart, opts?: GameOpts): Promise<void> 
   lastTracedScore = -1;
   runElapsedMs = 0;
   const gbar = $('#ghost-bar');
-  gbar.hidden = !ghostRival;
-  if (ghostRival) {
-    $('#gb-name').textContent = ghostRival.name;
+  gbar.hidden = !ghostRival && !pkOpp;
+  const rivalName = pkOpp?.name ?? ghostRival?.name;
+  if (rivalName) {
+    $('#gb-name').textContent = rivalName;
     $('#gb-rival').textContent = '0';
     $('#gb-you').textContent = '0';
     $('#gb-rival-fill').style.width = '0%';
@@ -1368,8 +1475,13 @@ function updateHud(s: GameStats): void {
     ghostTrace.push([Math.round(elapsedMs), s.score]);
     lastTracedScore = s.score;
   }
-  if (ghostRival) {
-    const rivalScore = ghostScoreAt(ghostRival, elapsedMs);
+  if (pkMatch && Date.now() - lastPkSyncAt > 1000) {
+    lastPkSyncAt = Date.now();
+    const prog = s.total > 0 ? (s.hits + s.misses) / s.total : 0;
+    void pkSync(pkMatch, s.score, prog, false).then((o) => { pkOpp = o; }).catch(() => {});
+  }
+  if (ghostRival || pkOpp) {
+    const rivalScore = pkOpp ? pkOpp.score : ghostScoreAt(ghostRival as GhostData, elapsedMs);
     $('#gb-rival').textContent = String(rivalScore);
     $('#gb-you').textContent = String(s.score);
     const peak = Math.max(rivalScore, s.score, 1);
@@ -1439,9 +1551,44 @@ async function showResult(s: GameStats): Promise<void> {
   $('#rs-earn').innerHTML = `⭐ 本局 +${rec.starsEarned} 星星${rec.firstClear ? ' · 🚩 首通 +5' : ''}${rec.newRecord ? ' · 🔥 破纪录 +1' : ''}`;
   $('#rs-ach').innerHTML = rec.achievements
     .map((a) => `<span class="rs-ach-item">${a.icon} ${a.name}</span>`).join('');
-  // 影子对决结果
+  // 对战结果：线上 PK 优先，其次影子对决
   const rg = $('#rs-ghost');
-  if (ghostRival) {
+  if (pkMatch) {
+    $('#rs-extra').hidden = false;
+    rg.hidden = false;
+    rg.classList.remove('win');
+    rg.textContent = '⚡ 线上 PK · 对手成绩确认中…';
+    const match = pkMatch;
+    void (async () => {
+      let oppRes: PkResult | null = null;
+      let oppName = match.opponent.name;
+      try {
+        for (let i = 0; i < 8; i++) {
+          const r = await pkResult(match, { score: s.score, combo: s.maxCombo, grade }, ghostTrace);
+          if (r.opponent?.name) oppName = r.opponent.name;
+          if (r.opponentResult) {
+            oppRes = r.opponentResult;
+            break;
+          }
+          await delay(2000);
+        }
+      } catch { /* 网络异常按当前比分裁决 */ }
+      const oppScore = oppRes ? oppRes.score : (pkOpp?.score ?? 0);
+      if (!oppRes) {
+        rg.textContent = `⚡ 线上 PK ${s.score} : ${oppScore} —— ${oppName} 掉线弃权，你获胜！`;
+        rg.classList.add('win');
+        return;
+      }
+      const win = s.score > oppScore;
+      const draw = s.score === oppScore;
+      rg.textContent = draw
+        ? `⚡ 线上 PK ${s.score} : ${oppScore} —— 平局！`
+        : win
+          ? `⚡ 线上 PK ${s.score} : ${oppScore} —— 你赢了 ${oppName}！`
+          : `⚡ 线上 PK ${s.score} : ${oppScore} —— 惜败 ${oppName}，再战一局！`;
+      rg.classList.toggle('win', win || draw);
+    })();
+  } else if (ghostRival) {
     const win = s.score >= ghostRival.res.score;
     rg.textContent = win
       ? `👻 影子对决 ${s.score} : ${ghostRival.res.score} —— 你赢了 ${ghostRival.name}！`
@@ -1475,6 +1622,7 @@ function quitGame(): void {
   padInput = null;
   classifier = new ActionClassifier();
   ghostRival = null; // 影子对决只在本局有效（重赛由 restartCurrent 接棒）
+  cleanupPk();
   showScreen('screen-menu');
 }
 
@@ -1627,6 +1775,19 @@ function setupMenu(): void {
   $('#btn-settings').addEventListener('click', () => {
     settingsFrom = 'screen-menu';
     showScreen('screen-settings');
+  });
+  $<HTMLButtonElement>('#btn-pk-back').addEventListener('click', () => {
+    cleanupPk();
+    showScreen('screen-menu');
+  });
+  $<HTMLButtonElement>('#btn-pk-go').addEventListener('click', () => void pkGo());
+  $<HTMLButtonElement>('#btn-pk-cancel').addEventListener('click', () => {
+    cleanupPk();
+    pkShowPanel('idle');
+  });
+  $<HTMLButtonElement>('#btn-pk-abort').addEventListener('click', () => {
+    cleanupPk();
+    pkShowPanel('idle');
   });
   $('#btn-settings-jump').addEventListener('click', () => {
     settingsFrom = 'screen-prepare';
