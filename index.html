@@ -10,9 +10,12 @@
 <body>
   <div id="app">
     <!-- ============ 屏幕 1：设备体检 ============ -->
-    <section class="screen active" id="screen-check">
+    <section class="screen" id="screen-check">
       <header class="topbar">
-        <div class="brand"><span class="brand-dot"></span>WarmingUp 律动跑酷</div>
+        <div class="topbar-left">
+          <button class="btn btn-ghost btn-small back-btn" data-back>←</button>
+          <div class="brand"><span class="brand-dot"></span>WarmingUp 律动跑酷</div>
+        </div>
         <div class="topbar-sub">设备体检</div>
       </header>
       <div class="check-grid">
@@ -21,8 +24,8 @@
           <div class="camera-hint" id="camera-hint">正在启动摄像头…</div>
         </div>
         <div class="card check-panel">
-          <h1 class="display">先给设备<br/>做个 60 秒体检</h1>
-          <p class="lead">体检结果会告诉你：这台电视能不能直接跑体感，还是要用手机当识别器。</p>
+          <h1 class="display">🔧 设备体检</h1>
+          <p class="lead">体检结果会告诉你：这台设备能不能直接跑体感，还是要用手机当识别器。</p>
           <ul class="check-list" id="check-list">
             <li data-key="wasm"><span class="ci"></span><span class="cl">WebAssembly 支持</span></li>
             <li data-key="camera"><span class="ci"></span><span class="cl">摄像头（getUserMedia）</span></li>
@@ -31,18 +34,17 @@
           </ul>
           <div class="verdict" id="verdict">体检进行中…</div>
           <div class="btn-row">
-            <button class="btn btn-primary" id="btn-enter" disabled>进入游戏</button>
-            <button class="btn btn-ghost" id="btn-skip">跳过体检</button>
+            <button class="btn btn-primary" id="btn-enter">返回菜单</button>
+            <button class="btn btn-ghost" id="btn-recheck">重新体检</button>
           </div>
         </div>
       </div>
     </section>
 
-    <!-- ============ 屏幕 2：模式选择 ============ -->
-    <section class="screen" id="screen-menu">
+    <!-- ============ 屏幕 2：模式选择（App 首屏） ============ -->
+    <section class="screen active" id="screen-menu">
       <header class="topbar">
         <div class="topbar-left">
-          <button class="btn btn-ghost btn-small back-btn" id="btn-menu-back">← 体检</button>
           <div class="brand"><span class="brand-dot"></span>WarmingUp 律动跑酷</div>
         </div>
         <div class="topbar-right">
@@ -125,7 +127,7 @@
           </div>
           <div class="btn-row">
             <button class="btn btn-ghost" id="btn-cast">📺 投屏到电视</button>
-            <button class="btn btn-ghost" id="btn-back-check">返回体检</button>
+            <button class="btn btn-ghost" id="btn-back-check">🔧 设备体检</button>
           </div>
         </section>
         <section class="mstep" data-step="3">

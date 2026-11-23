@@ -232,14 +232,19 @@ function refreshStarCount(): void {
   if (b) b.textContent = t;
 }
 
-/** 统一返回：对局→退局；子屏→回菜单；菜单/体检→0（壳双按退出） */
+/** 统一返回：对局→退局；子屏→回菜单；体检→回菜单；菜单→0（壳双按退出） */
 function goBack(): number {
   if (game) {
     quitGame();
     return 1;
   }
   const active = document.querySelector('.screen.active')?.id ?? '';
-  if (active === 'screen-check' || active === 'screen-menu') return 0;
+  if (active === 'screen-check') {
+    checkSkipped = true; // 离开体检 = 不接受迟到结论
+    showScreen('screen-menu');
+    return 1;
+  }
+  if (active === 'screen-menu') return 0;
   if (active === 'screen-result') {
     quitGame();
     return 1;
@@ -365,6 +370,8 @@ async function runDeviceCheck(): Promise<void> {
     setCheck('camera', 'ok', '已就绪');
   } catch {
     setCheck('camera', 'fail', '无可用摄像头');
+    const hint = $<HTMLElement>('#camera-hint');
+    hint.textContent = '摄像头不可用';
   }
 
   // 3) 姿态识别帧率（摄像头可用时实测 5 秒）
@@ -379,6 +386,10 @@ async function runDeviceCheck(): Promise<void> {
       const stream = video.srcObject as MediaStream | null;
       stream?.getTracks().forEach((t) => t.stop());
       video.srcObject = null;
+      const hint = $<HTMLElement>('#camera-hint');
+      hint.classList.remove('hidden');
+      hint.style.display = '';
+      hint.textContent = '体检完成 · 摄像头已关闭';
 
       // 低性能设备：关泛光/抗锯齿，保帧率
       document.body.dataset.lowperf = fps < 12 ? '1' : '0';
@@ -417,21 +428,24 @@ async function runDeviceCheck(): Promise<void> {
       selectCard('source', 'phone');
     }
   }
-  $<HTMLButtonElement>('#btn-enter').disabled = false;
 }
 
 // ---------- 菜单：单页滚动配置（App 式，即点即选，无步骤向导） ----------
 /** 滚动到指定配置区（1 玩法 / 2 识别 / 3 装备）；n <= 0 回顶部 */
-function showMenuStep(n: number): void {
+/** 滚动到指定配置区（1 玩法 / 2 识别 / 3 装备）；n <= 0 回顶部；instant 跳过平滑动画（boot 初始定位用） */
+function showMenuStep(n: number, instant = false): void {
   const wrap = $('.menu-wrap');
+  const behavior: ScrollBehavior = instant ? 'auto' : 'smooth';
   if (n <= 0) {
-    wrap.scrollTo({ top: 0, behavior: 'smooth' });
+    wrap.scrollTo({ top: 0, behavior });
     return;
   }
   const target = document.querySelector<HTMLElement>(`.mstep[data-step="${n}"]`);
   if (target) {
-    const top = target.getBoundingClientRect().top - wrap.getBoundingClientRect().top + wrap.scrollTop - 8;
-    wrap.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
+    // zoom（tv-mode 1.18 加在 .screen 上）下 rect 是缩放后坐标，除回布局像素再加 scrollTop
+    const zoom = parseFloat(getComputedStyle(wrap.closest('.screen') ?? wrap).zoom) || 1;
+    const top = (target.getBoundingClientRect().top - wrap.getBoundingClientRect().top) / zoom + wrap.scrollTop - 8;
+    wrap.scrollTo({ top: Math.max(0, top), behavior });
   }
   if (n >= 3) refreshChartLab(); // 节奏工坊画布滚动到视口后按真实宽度补绘
 }
@@ -1536,9 +1550,10 @@ function boot(): void {
     castCode = code;
     userPickedSource = true;
     selectCard('source', 'phone');
-    showMenuStep(2); // 直达「识别」步，投屏连接状态（pair-card）可见
+    void audio.init();
     showScreen('screen-menu');
     refreshChartLab();
+    showMenuStep(2, true); // 布局稳定后瞬时定位到「识别」区（投屏连接状态可见）
     return;
   }
 
@@ -1548,30 +1563,29 @@ function boot(): void {
     $('#tv-hint-bar').hidden = false;
     userPickedSource = true;
     selectCard('source', 'phone');
-    showMenuStep(2);
     void audio.init();
     showScreen('screen-menu');
     refreshChartLab();
+    showMenuStep(2, true); // 布局稳定后瞬时定位到「识别」区（配对卡可见）
     return;
   }
 
-  showScreen('screen-check');
-  void runDeviceCheck();
+  // App 首屏 = 菜单配置页（体检已是工具，不在启动路径上；不启动摄像头）
+  showScreen('screen-menu');
+  refreshChartLab();
 }
 
 function setupMenu(): void {
   // 体检按钮
   $('#btn-enter').addEventListener('click', () => {
+    checkSkipped = true; // 离开体检 = 不接受迟到结论
     void audio.init();
     showScreen('screen-menu');
     refreshChartLab(); // 菜单可见后按真实宽度重绘画布
   });
-  $('#btn-skip').addEventListener('click', () => {
-    checkSkipped = true; // 主动跳过 = 不接受体检结论
-    if (!userPickedSource) selectCard('source', 'direct'); // 复位默认，不被背后结论改掉
-    void audio.init();
-    showScreen('screen-menu');
-    refreshChartLab();
+  $('#btn-recheck').addEventListener('click', () => {
+    checkSkipped = false; // 重新体检 = 愿意听结论
+    void runDeviceCheck();
   });
   $('#btn-back-check').addEventListener('click', () => {
     checkSkipped = false; // 回体检重测 = 重新听体检结论
@@ -1758,14 +1772,10 @@ function setupMenu(): void {
     quitGame();
   });
 
-  // P0：我的档案 / 体检返回
+  // P0：我的档案
   $('#btn-profile').addEventListener('click', () => {
     renderProfile();
     showScreen('screen-profile');
-  });
-  $('#btn-menu-back').addEventListener('click', () => {
-    showScreen('screen-check');
-    void runDeviceCheck();
   });
 
   // P0：成绩海报（Canvas 生成 PNG 下载）
