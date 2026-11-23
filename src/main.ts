@@ -214,6 +214,41 @@ function showScreen(id: string): void {
   document.querySelectorAll('.screen').forEach((s) => s.classList.remove('active'));
   $(`#${id}`).classList.add('active');
   if (id === 'screen-menu') renderLevels(); // PB/星星可能更新，海报徽章刷一遍
+  // 横屏会话收尾：退回菜单/准备/设置/体检即恢复竖屏并退出全屏
+  if (id === 'screen-menu' || id === 'screen-prepare' || id === 'screen-settings' || id === 'screen-check') {
+    landscapeSession = false;
+    if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
+  }
+  syncGameOrientation();
+}
+
+// ---------- 进游戏即横排 ----------
+// 主路径：进游戏时全屏 + 系统转向锁（Android Chrome 等支持的环境直接真横屏）；
+// 兜底：转向锁不可用（iOS / 竖屏锁死的 WebView）时把对局流转屏旋转 90° 呈横排，
+// 用户把手机横过来即为正向；视口已是横屏则两路都不干预。
+let landscapeSession = false;
+
+async function requestLandscape(): Promise<void> {
+  if (!matchMedia('(pointer: coarse)').matches) return; // 桌面不折腾
+  try {
+    if (!document.fullscreenElement) await document.documentElement.requestFullscreen?.();
+  } catch { /* 不支持则走 CSS 兜底 */ }
+  try {
+    const so = screen.orientation as unknown as { lock?: (o: string) => Promise<void> };
+    await so.lock?.('landscape');
+  } catch { /* 同上 */ }
+}
+
+function syncGameOrientation(): void {
+  const portrait = window.innerHeight > window.innerWidth;
+  const on = landscapeSession && portrait && matchMedia('(pointer: coarse)').matches;
+  if (on) {
+    document.documentElement.style.setProperty('--fl-w', `${window.innerHeight}px`);
+    document.documentElement.style.setProperty('--fl-h', `${window.innerWidth}px`);
+    document.querySelector('.rotate-hint')!.textContent = '🔄 把手机横过来玩';
+  }
+  document.body.classList.toggle('game-landscape', on);
+  game?.resize();
 }
 
 // ---------- Toast / 星星 / 返回 ----------
@@ -1246,6 +1281,8 @@ function restartCurrent(): void {
 
 // ---------- 游戏 ----------
 async function startGame(chartOverride?: Chart, opts?: GameOpts): Promise<void> {
+  landscapeSession = true;
+  void requestLandscape(); // 尽早发起（吃手势时效），结果由 resize 回调收敛
   await audio.init();
   showScreen('screen-game');
   clearTimeline();
@@ -1872,6 +1909,8 @@ function boot(): void {
 
   setupMenu();
   setupCast();
+  window.addEventListener('resize', () => syncGameOrientation());
+  window.addEventListener('orientationchange', () => window.setTimeout(syncGameOrientation, 60));
 
   // P0/P1：星星计数 + 影子挑战横幅（菜单可见前预置）
   refreshStarCount();

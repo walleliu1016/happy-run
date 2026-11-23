@@ -1377,3 +1377,12 @@ body {
 #screen-game.pk-split .judge-float { right: 54.2%; }
 /* 口令圆盘移到 HUD 簇下方空档，缩一点，别压计时器/连击 */
 #screen-game.pk-split .cue { left: 25%; top: 30%; transform: translateX(-50%) scale(0.78); }
+
+/* ===== 进游戏即横排（转向锁不可用时的兜底） ===== */
+/* 游戏流转屏旋转 90° 呈横排，用户把手机横过来即为正向；视口已横屏时 JS 不加类，此块不生效 */
+body.game-landscape .screen.active {
+  position: fixed; top: 0; left: 0; z-index: 60;
+  width: var(--fl-w, 100vh); height: var(--fl-h, 100vw);
+  transform-origin: 0 0;
+  transform: rotate(90deg) translateY(-100%);
+}
