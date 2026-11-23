@@ -2,7 +2,7 @@
 
 export type GameAction = 'jump' | 'squat' | 'punch' | 'stomp' | 'run' | 'left' | 'right';
 
-export type SceneMode = 'class' | 'train';
+export type SceneMode = 'class' | 'train' | 'pk';
 export type InputSource = 'direct' | 'phone' | 'pad';
 
 /** 判定四档：完成时刻落在拍点窗口内的精度 */

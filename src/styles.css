@@ -1281,19 +1281,34 @@ body {
   .cal-grid { gap: 4px; }
 }
 
-/* ===== 线上 PK 对战（匹配 / VS 卡 / 对战条复用 ghost-bar） ===== */
-.level-poster.pk { --lp-accent: #ff375f; }
+/* ===== 线上 PK 竞技模式（房间邀请 / VS 卡 / 分屏对局） ===== */
+/* 房间大厅 */
+.pk-join-row {
+  display: flex; gap: 10px; justify-content: center; align-items: center;
+  margin-top: 14px; flex-wrap: wrap;
+}
+.pk-code-input {
+  width: 150px; text-align: center;
+  letter-spacing: 6px; font-weight: 800; text-transform: uppercase;
+}
+.pk-hint { opacity: 0.75; margin-top: 10px; }
+.pk-room-code {
+  margin: 10px auto 14px;
+  font-size: clamp(34px, 5vw, 54px); font-weight: 900; letter-spacing: 10px;
+  color: #ff375f; text-shadow: 0 0 28px rgba(255, 55, 95, 0.45);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.pk-qr {
+  display: block; margin: 0 auto 12px;
+  border-radius: 16px; background: #fff; padding: 10px;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.25);
+}
 .pk-card {
   max-width: 560px; margin: 0 auto; text-align: center;
   padding: clamp(22px, 3vw, 40px);
   display: flex; flex-direction: column; gap: 14px; align-items: center;
 }
 .pk-hero { font-size: clamp(56px, 8vw, 96px); line-height: 1; }
-.pk-spinner { font-size: clamp(48px, 7vw, 72px); line-height: 1; animation: pk-pulse 1.1s ease-in-out infinite; }
-@keyframes pk-pulse {
-  0%, 100% { transform: scale(1) rotate(-4deg); opacity: 0.75; }
-  50% { transform: scale(1.18) rotate(4deg); opacity: 1; }
-}
 .pk-name-input {
   width: min(320px, 80vw); padding: 12px 18px; border-radius: 14px;
   border: 1.5px solid rgba(0, 0, 0, 0.14); background: var(--card);
@@ -1313,3 +1328,52 @@ body {
 .pk-side-tag { font-size: 11px; letter-spacing: 2px; color: var(--ink-2); font-weight: 700; }
 .pk-v { font-size: clamp(26px, 3.4vw, 38px); font-weight: 900; color: #ff375f; letter-spacing: -1px; }
 .pk-count { color: #ff375f; font-weight: 800; }
+
+/* 分屏对局 HUD：中央实时比分条 + 右半对手舞台面板 */
+.pk-vs-bar {
+  position: absolute; top: clamp(10px, 1.6vw, 20px); left: 50%; transform: translateX(-50%);
+  display: flex; align-items: center; gap: clamp(10px, 1.6vw, 22px);
+  padding: clamp(7px, 0.9vw, 12px) clamp(14px, 2vw, 26px);
+  border-radius: 999px; white-space: nowrap;
+  background: rgba(12, 6, 30, 0.72); border: 1px solid rgba(255, 55, 95, 0.55);
+  backdrop-filter: blur(12px); pointer-events: none; z-index: 6;
+  font-size: clamp(12px, 1.3vw, 19px); font-weight: 800; color: #fff;
+}
+.pvb-side b { font-size: 1.35em; color: #ffe95c; }
+.pvb-lead { color: #ff8fa3; letter-spacing: 1px; }
+.pvb-lead.ahead { color: #6bff9e; }
+.pk-opp-panel {
+  position: absolute; top: clamp(58px, 8vw, 98px); right: clamp(12px, 2vw, 28px);
+  width: min(30vw, 220px);
+  padding: clamp(10px, 1.2vw, 16px) clamp(12px, 1.6vw, 20px);
+  border-radius: 18px; pointer-events: none; z-index: 6;
+  background: rgba(12, 6, 30, 0.6); border: 1px solid rgba(255, 55, 95, 0.4);
+  backdrop-filter: blur(10px); color: #fff;
+}
+.pop-name {
+  font-size: clamp(12px, 1.15vw, 17px); font-weight: 800; opacity: 0.92;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.pop-score {
+  font-size: clamp(22px, 2.6vw, 38px); font-weight: 900; color: #ff8fa3;
+  line-height: 1.05; text-shadow: 0 0 18px rgba(255, 55, 95, 0.5);
+}
+.pop-combo { font-size: clamp(10px, 1vw, 15px); font-weight: 700; color: #ffd60a; }
+.pop-track {
+  margin-top: 8px; height: 6px; border-radius: 999px; overflow: hidden;
+  background: rgba(255, 255, 255, 0.16);
+}
+.pop-track i {
+  display: block; height: 100%; width: 0; border-radius: 999px;
+  background: linear-gradient(90deg, #ff375f, #ff8fa3);
+  transition: width 0.5s ease;
+}
+/* 分屏：我的 HUD 与动作时间轴只占左半场，右半留给对手舞台 */
+#screen-game.pk-split .game-hud { right: 50%; }
+#screen-game.pk-split .timeline { left: 25%; width: min(340px, max(200px, 28vw)); }
+/* 分屏时弹字/横幅/口令锚到自己半屏（左半）中心，别压中缝/跑到对手半屏 */
+#screen-game.pk-split .action-banner { left: 25%; }
+#screen-game.pk-split .combo-banner { left: 25%; }
+#screen-game.pk-split .judge-float { right: 54.2%; }
+/* 口令圆盘移到 HUD 簇下方空档，缩一点，别压计时器/连击 */
+#screen-game.pk-split .cue { left: 25%; top: 30%; transform: translateX(-50%) scale(0.78); }

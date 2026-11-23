@@ -20,7 +20,8 @@ import {
   chartFromGhost, ghostFromRun, ghostScoreAt, ghostShareUrl, parseGhostHash, type GhostData,
 } from './engine/ghost';
 import {
-  pkJoin, pkLeave, pkOnline, pkResult, pkSync, type PkMatch, type PkOpponent, type PkResult,
+  pkCreateRoom, pkJoinRoom, pkLeave, pkOnline, pkRematch, pkResult, pkRoomStatus, pkSync,
+  type PkPlayer, type PkResult, type PkRoomState,
 } from './pk';
 import { ActionClassifier } from './input/classifier';
 import { GamepadInput, connectedPadNames } from './input/gamepad';
@@ -261,7 +262,7 @@ function goBack(): number {
   }
   if (active === 'screen-pk') {
     cleanupPk();
-    showScreen('screen-menu');
+    showScreen(pendingLevel ? 'screen-prepare' : 'screen-menu');
     return 1;
   }
   if (active === 'screen-menu') return 0;
@@ -454,7 +455,7 @@ async function runDeviceCheck(): Promise<void> {
 /** 滚动到指定配置区（1 玩法 / 2 识别 / 3 装备）；n <= 0 回顶部 */
 
 function updateMenuSummary(): void {
-  const sceneTxt = scene === 'class' ? '🏫 课堂模式' : '🔥 训练模式';
+  const sceneTxt = scene === 'class' ? '🏫 课堂模式' : scene === 'train' ? '🔥 训练模式' : '⚡ 竞技 PK';
   const diffTxt = difficulty === 'easy' ? '🌱 轻松' : difficulty === 'hard' ? '⚡ 挑战' : '🔥 标准';
   const srcTxt = source === 'direct' ? '📷 摄像头' : source === 'phone' ? '📱 手机识别' : '🎮 手柄·键盘';
   const bg = document.querySelector<HTMLElement>('.look-chip[data-bg].selected')?.dataset.bg ?? 'neon';
@@ -472,8 +473,11 @@ function selectCard(group: 'scene' | 'source', value: string): void {
   document.querySelectorAll<HTMLElement>(`.mode-card[${attr}]`).forEach((el) => {
     el.classList.toggle('selected', el.getAttribute(attr) === value);
   });
-  if (group === 'scene') scene = value as SceneMode;
-  else {
+  if (group === 'scene') {
+    scene = value as SceneMode;
+    // 竞技 PK 是对战玩法：开跑按钮变成进房间入口
+    $<HTMLButtonElement>('#btn-start').textContent = scene === 'pk' ? '进入 PK 房间 ⚡' : '开始挑战';
+  } else {
     source = value as InputSource;
     updatePairCard();
   }
@@ -926,9 +930,9 @@ function levelGameOpts(def: LevelDef): GameOpts {
 /** 当前待开玩的关卡（海报墙点选）；null = 自由练习 */
 let pendingLevel: LevelDef | null = null;
 
-// ---------- 线上 PK 对战 ----------
-let pkMatch: PkMatch | null = null;
-let pkOpp: PkOpponent | null = null;
+// ---------- 线上 PK 竞技模式（房间邀请制） ----------
+let pkRoom: PkRoomState | null = null;
+let pkOpp: PkPlayer | null = null;
 let lastPkSyncAt = 0;
 
 /** 海报 PB 徽章（有记录才显示） */
@@ -960,21 +964,9 @@ function renderLevels(): void {
       <div class="lp-sub">工坊谱面 · 自由练习</div>
       <div class="lp-cn">你的音乐你的节奏</div>
       ${levelBestHtml('free')}
-    </button>
-    <button class="level-poster pk" data-pk>
-      <div class="lp-bg"></div>
-      <div class="lp-emoji">⚡</div>
-      <div class="lp-lv">PK</div>
-      <div class="lp-name">ONLINE BATTLE</div>
-      <div class="lp-sub">线上对战 · 同关竞速</div>
-      <div class="lp-cn">实时 PK 关卡</div>
     </button>`;
   grid.querySelectorAll<HTMLElement>('.level-poster').forEach((el) => {
     el.addEventListener('click', () => {
-      if (el.dataset.pk !== undefined) {
-        pkEnter();
-        return;
-      }
       const id = el.dataset.level ?? '';
       pendingLevel = LEVELS.find((l) => l.id === id) ?? null;
       renderPrepareHero();
@@ -984,23 +976,45 @@ function renderLevels(): void {
   });
 }
 
-// ---------- 线上 PK 对战：匹配 → 同关竞速 → 结算胜负 ----------
+// ---------- 线上 PK 竞技模式：房间邀请 → 分屏同跑 → 结算胜负 ----------
 let pkSeq = 0;
+/** PK 用哪张关卡图（准备屏带过来；邀请链接进房时以房间关卡为准） */
+let pkLevelDef: LevelDef | null = null;
 
-function pkShowPanel(which: 'idle' | 'matching' | 'matched'): void {
+function pkShowPanel(which: 'idle' | 'waiting' | 'matched'): void {
   $('#pk-idle').hidden = which !== 'idle';
-  $('#pk-matching').hidden = which !== 'matching';
+  $('#pk-waiting').hidden = which !== 'waiting';
   $('#pk-matched').hidden = which !== 'matched';
 }
 
 function cleanupPk(): void {
   pkSeq++;
-  void pkLeave(pkMatch);
-  pkMatch = null;
+  void pkLeave(pkRoom);
+  pkRoom = null;
   pkOpp = null;
 }
 
-async function pkEnter(): Promise<void> {
+/** 邀请链接：当前地址 + ?pkroom=房码（扫码/点开即入房） */
+function pkInviteUrl(code: string): string {
+  const u = new URL(location.href);
+  u.searchParams.set('pkroom', code);
+  return u.toString();
+}
+
+function pkSaveName(): string {
+  const input = $<HTMLInputElement>('#pk-name');
+  const name = input.value.trim() || '玩家';
+  input.value = name;
+  localStorage.setItem('wu.pkname', name);
+  return name;
+}
+
+function diffLabel(d: string): string {
+  return d === 'easy' ? '轻松' : d === 'hard' ? '挑战' : '标准';
+}
+
+/** PK 大厅：创建房间邀人 / 输码加入；带 ?pkroom= 的邀请链接自动填码加入 */
+function pkEnter(): void {
   cleanupPk();
   showScreen('screen-pk');
   pkShowPanel('idle');
@@ -1008,55 +1022,142 @@ async function pkEnter(): Promise<void> {
   if (!input.value) {
     input.value = localStorage.getItem('wu.pkname') || `玩家${Math.floor(1000 + Math.random() * 9000)}`;
   }
-  void pkOnline().then((n) => { $('#pk-online').textContent = `在线 ${n} 人`; }).catch(() => {});
-}
-
-async function pkGo(): Promise<void> {
-  cleanupPk();
-  const seq = pkSeq;
-  const input = $<HTMLInputElement>('#pk-name');
-  const name = input.value.trim() || '玩家';
-  input.value = name;
-  localStorage.setItem('wu.pkname', name);
-  pkShowPanel('matching');
-  $('#pk-match-title').textContent = '匹配对手中…';
-  try {
-    const match = await pkJoin(name, LEVELS.map((l) => l.id), (sec) => {
-      $('#pk-match-sub').textContent = `正在寻找在线玩家 · ${sec}s`;
-    });
-    if (seq !== pkSeq) {
-      void pkLeave(match); // 已取消
-      return;
-    }
-    pkMatch = match;
-    pkOpp = match.opponent;
-    $('#pk-me-name').textContent = name;
-    $('#pk-opp-name').textContent = match.opponent.name;
-    $('#pk-opp-tag').textContent = match.shadow ? '影子' : 'LIVE';
-    const def = LEVELS.find((l) => l.id === match.level);
-    $('#pk-map-info').textContent = `本局地图：${def ? `${def.lv} · ${def.nameCn}` : match.level} · 标准难度`;
-    pkShowPanel('matched');
-    for (let i = 3; i > 0; i--) {
-      $('#pk-count').textContent = `${i} 秒后开跑…`;
-      await delay(1000);
-      if (seq !== pkSeq) return; // 中途取消
-    }
-    await pkStartRun();
-  } catch {
-    if (seq === pkSeq) {
-      pkShowPanel('idle');
-      showToast('匹配失败，请检查网络后重试');
-    }
+  pkLevelDef = pendingLevel ?? currentLevel;
+  void pkOnline().then((n) => {
+    $('#pk-online').textContent = `${n.rooms} 房 · ${n.players} 人在线`;
+  }).catch(() => {});
+  const inviteCode = new URLSearchParams(location.search).get('pkroom');
+  if (inviteCode) {
+    $<HTMLInputElement>('#pk-code').value = inviteCode.toUpperCase();
+    const u = new URL(location.href);
+    u.searchParams.delete('pkroom');
+    history.replaceState(null, '', u.toString());
+    void pkJoinRoomFlow(inviteCode);
   }
 }
 
+/** 创建房间（房主）：房码 + 二维码 + 邀请链接，等对手进来 */
+async function pkCreateFlow(): Promise<void> {
+  const seq = ++pkSeq;
+  const name = pkSaveName();
+  const def = pkLevelDef;
+  if (!def) return;
+  try {
+    const room = await pkCreateRoom(name, def.id, difficulty);
+    if (seq !== pkSeq) { void pkLeave(room); return; }
+    pkRoom = room;
+    $('#pk-room-code').textContent = room.roomCode;
+    $('#pk-wait-title').textContent = '房间已创建';
+    $('#pk-wait-lead').innerHTML = '让好友扫二维码，或把链接发给 TA：<br>两人到齐自动开跑！';
+    $('#pk-wait-sub').textContent = '等待对手加入… 0s';
+    void QRCode.toCanvas($<HTMLCanvasElement>('#pk-qr'), pkInviteUrl(room.roomCode), {
+      width: 220, margin: 1, color: { dark: '#1d1d1f' },
+    });
+    pkShowPanel('waiting');
+    await pkWaitForOpponent(seq);
+  } catch {
+    if (seq === pkSeq) showToast('创建房间失败，请检查网络后重试');
+  }
+}
+
+/** 加入房间（输码 / 扫码 / 邀请链接直达） */
+async function pkJoinRoomFlow(code: string): Promise<void> {
+  const seq = ++pkSeq;
+  const name = pkSaveName();
+  try {
+    const room = await pkJoinRoom(code, name);
+    if (seq !== pkSeq) { void pkLeave(room); return; }
+    pkRoom = room;
+    if (room.state === 'playing' && room.opponent) {
+      await pkVsCountdown(seq, room);
+    } else {
+      $('#pk-room-code').textContent = room.roomCode;
+      $('#pk-wait-title').textContent = '已加入房间';
+      $('#pk-wait-lead').textContent = '对手马上就到，准备开跑！';
+      $('#pk-wait-sub').textContent = '等待开局…';
+      pkShowPanel('waiting');
+      await pkWaitForOpponent(seq);
+    }
+  } catch (e) {
+    if (seq !== pkSeq) return;
+    pkShowPanel('idle');
+    const msg = String(e);
+    showToast(msg.includes('404') ? '房间不存在或已失效' : msg.includes('409') ? '房间已满（2 人）' : '加入失败，请检查网络');
+  }
+}
+
+/** 等对手就位（轮询房间状态）→ 一起进 VS 倒计时 */
+async function pkWaitForOpponent(seq: number): Promise<void> {
+  let waited = 0;
+  while (seq === pkSeq && pkRoom) {
+    await delay(1000);
+    if (seq !== pkSeq || !pkRoom) return;
+    waited++;
+    try {
+      const st = await pkRoomStatus(pkRoom);
+      if (seq !== pkSeq || !pkRoom) return;
+      pkRoom = { ...pkRoom, ...st, playerId: pkRoom.playerId };
+      if (st.state === 'playing' && st.opponent) {
+        await pkVsCountdown(seq, st);
+        return;
+      }
+      if (st.opponentLeft && waited > 3 && st.state !== 'waiting') {
+        $('#pk-wait-sub').textContent = '对手已离开房间';
+        return;
+      }
+      $('#pk-wait-sub').textContent = `等待对手加入… ${waited}s`;
+    } catch { /* 网络抖动继续等 */ }
+    if (waited > 600) return;
+  }
+}
+
+/** VS 卡倒计时（按服务端 startAt 对齐）→ 开跑 */
+async function pkVsCountdown(seq: number, room: PkRoomState): Promise<void> {
+  pkRoom = { ...(pkRoom ?? room), ...room, playerId: pkRoom?.playerId ?? room.playerId };
+  pkOpp = room.opponent;
+  const def = pkLevelDef ?? LEVELS.find((l) => l.id === room.level) ?? LEVELS[0];
+  pkLevelDef = def;
+  $('#pk-me-name').textContent = $<HTMLInputElement>('#pk-name').value.trim() || '我';
+  $('#pk-opp-name').textContent = room.opponent?.name ?? '对手';
+  $('#pk-opp-tag').textContent = 'LIVE';
+  $('#pk-map-info').textContent = `本局地图：${def.lv} · ${def.nameCn} · ${diffLabel(room.difficulty)}`;
+  pkShowPanel('matched');
+  for (;;) {
+    const left = Math.ceil((room.startAt - Date.now()) / 1000);
+    if (left <= 0 || seq !== pkSeq) break;
+    $('#pk-count').textContent = `${left} 秒后开跑…`;
+    await delay(250);
+  }
+  if (seq !== pkSeq) return;
+  $('#pk-count').textContent = 'GO!';
+  await pkStartRun();
+}
+
+/** 开跑：同谱面（房间 seed）分屏对战 */
 async function pkStartRun(): Promise<void> {
-  if (!pkMatch) return;
-  pkOpp = pkMatch.opponent;
-  const def = LEVELS.find((l) => l.id === pkMatch!.level) ?? LEVELS[0];
+  if (!pkRoom) return;
+  const def = pkLevelDef ?? LEVELS[0];
   currentLevel = def;
-  await showIntroCard(def.introEn, def.introCn, def.lv, 2600);
-  await startGame(buildLevelChart(def, 'normal', pkMatch!.seed), levelGameOpts(def));
+  await startGame(buildLevelChart(def, (pkRoom.difficulty as Difficulty) || 'normal', pkRoom.seed), {
+    ...levelGameOpts(def),
+    split: true,
+  });
+}
+
+/** 再来一局：双方都点 → 同房间新谱面重开 */
+async function pkRematchFlow(): Promise<void> {
+  if (!pkRoom) return;
+  const seq = ++pkSeq;
+  showScreen('screen-pk');
+  $('#pk-room-code').textContent = pkRoom.roomCode;
+  $('#pk-wait-title').textContent = '再来一局';
+  $('#pk-wait-lead').textContent = '等对手也确认，马上重开！';
+  $('#pk-wait-sub').textContent = '等待对手确认…';
+  pkShowPanel('waiting');
+  try {
+    await pkRematch(pkRoom);
+  } catch { /* 轮询兜底 */ }
+  await pkWaitForOpponent(seq);
 }
 
 /** 开玩准备：关卡横幅（海报视觉延续）；工坊只属于自由练习 */
@@ -1088,6 +1189,10 @@ function renderPrepareHero(): void {
       </div>
       ${best}`;
   }
+  // 竞技 PK 只跟关卡走（同谱面 seed 对决）：自由练习不提供，已选则回落训练模式
+  const pkCard = document.querySelector<HTMLElement>('.mode-card[data-scene="pk"]');
+  if (pkCard) pkCard.hidden = !pendingLevel;
+  if (!pendingLevel && scene === 'pk') selectCard('scene', 'train');
   $('#music-card').hidden = !!pendingLevel; // 音乐工坊只跟自由练习有关
 }
 
@@ -1112,16 +1217,23 @@ async function startLevel(def: LevelDef): Promise<void> {
   await startGame(buildLevelChart(def, difficulty, chartSeed), levelGameOpts(def));
 }
 
-/** 再来一局（关卡模式：同关重开；影子挑战：同谱面重赛，不重看过场） */
+/** 再来一局（关卡：同关重开；影子挑战：同谱面重赛；PK：同房间重开不离房） */
 function restartCurrent(): void {
   const rival = ghostRival;
-  const wasPk = pkMatch;
-  quitGame();
-  if (wasPk) {
-    // PK 再来一局 = 重新匹配新对手
-    void pkEnter().then(() => pkGo());
+  const pk = pkRoom;
+  if (pk) {
+    // PK 再来一局 = 同房间新谱面（只收对局，不离房）
+    game?.stop();
+    game = null;
+    pose?.stop();
+    pose = null;
+    padInput?.stop();
+    padInput = null;
+    classifier = new ActionClassifier();
+    void pkRematchFlow();
     return;
   }
+  quitGame();
   if (currentLevel) {
     void startGame(buildLevelChart(currentLevel, difficulty, chartSeed), levelGameOpts(currentLevel));
   } else if (rival) {
@@ -1141,7 +1253,7 @@ async function startGame(chartOverride?: Chart, opts?: GameOpts): Promise<void> 
   shownCombo = 0;
   const hud = $('#game-hud');
   hud.style.display = 'flex';
-  $('#hud-score').style.display = scene === 'train' ? 'flex' : 'none';
+  $('#hud-score').style.display = scene !== 'class' ? 'flex' : 'none';
   $('#cue').hidden = true;
 
   const canvas = $<HTMLCanvasElement>('#game-canvas');
@@ -1153,8 +1265,8 @@ async function startGame(chartOverride?: Chart, opts?: GameOpts): Promise<void> 
   lastTracedScore = -1;
   runElapsedMs = 0;
   const gbar = $('#ghost-bar');
-  gbar.hidden = !ghostRival && !pkOpp;
-  const rivalName = pkOpp?.name ?? ghostRival?.name;
+  gbar.hidden = !ghostRival;
+  const rivalName = ghostRival?.name;
   if (rivalName) {
     $('#gb-name').textContent = rivalName;
     $('#gb-rival').textContent = '0';
@@ -1240,6 +1352,19 @@ async function startGame(chartOverride?: Chart, opts?: GameOpts): Promise<void> 
     },
   }, gameLook, opts);
   game.calibSec = calibMs / 1000;
+
+  // 分屏 PK：右半对手舞台 + 中央比分条就位（对手舞台时钟从 0 起，sync 后插值推进）
+  const isPk = !!pkRoom;
+  $('#pk-vs-bar').hidden = !isPk;
+  $('#pk-opp-panel').hidden = !isPk;
+  $('#screen-game').classList.toggle('pk-split', isPk);
+  if (isPk) {
+    game.setOpponent(0);
+    if (pkOpp) {
+      $('#pkb-opp-name').textContent = pkOpp.name;
+      $('#pop-name').textContent = pkOpp.name;
+    }
+  }
 
   window.addEventListener('resize', () => {
     game?.resize();
@@ -1460,7 +1585,7 @@ function updateHud(s: GameStats): void {
   const mult = $('#hud-mult');
   mult.textContent = `×${s.multiplier}`;
   mult.classList.toggle('hot', s.multiplier >= 3);
-  mult.style.display = scene === 'train' && s.multiplier > 1 ? 'block' : 'none';
+  mult.style.display = scene !== 'class' && s.multiplier > 1 ? 'block' : 'none';
   // 分数滚动追值（每帧指数平滑）
   shownScore += (s.score - shownScore) * 0.16;
   if (Math.abs(s.score - shownScore) < 1) shownScore = s.score;
@@ -1475,13 +1600,31 @@ function updateHud(s: GameStats): void {
     ghostTrace.push([Math.round(elapsedMs), s.score]);
     lastTracedScore = s.score;
   }
-  if (pkMatch && Date.now() - lastPkSyncAt > 1000) {
+  if (pkRoom && Date.now() - lastPkSyncAt > 1000) {
     lastPkSyncAt = Date.now();
     const prog = s.total > 0 ? (s.hits + s.misses) / s.total : 0;
-    void pkSync(pkMatch, s.score, prog, false).then((o) => { pkOpp = o; }).catch(() => {});
+    void pkSync(pkRoom, { score: s.score, progress: prog, t: elapsedMs / 1000, combo: s.combo, done: false })
+      .then((o) => {
+        pkOpp = o;
+        if (o) game?.setOpponent(o.t); // 对手舞台时钟 → 分屏右半镜像
+      })
+      .catch(() => {});
   }
-  if (ghostRival || pkOpp) {
-    const rivalScore = pkOpp ? pkOpp.score : ghostScoreAt(ghostRival as GhostData, elapsedMs);
+  if (pkRoom) {
+    // 分屏 PK：中央实时比分条 + 右半对手面板
+    const oppScore = pkOpp?.score ?? 0;
+    $('#pkb-my').textContent = String(s.score);
+    $('#pkb-opp').textContent = String(oppScore);
+    const lead = s.score - oppScore;
+    const leadEl = $('#pkb-lead');
+    leadEl.textContent = lead > 0 ? `领先 ${lead}` : lead < 0 ? `落后 ${-lead}` : '咬紧比分！';
+    leadEl.classList.toggle('ahead', lead > 0);
+    $('#pop-name').textContent = pkOpp?.name ?? '对手';
+    $('#pop-score').textContent = String(oppScore);
+    $('#pop-combo').textContent = `${pkOpp?.combo ?? 0} COMBO`;
+    $('#pop-fill').style.width = `${((pkOpp?.progress ?? 0) * 100).toFixed(1)}%`;
+  } else if (ghostRival) {
+    const rivalScore = ghostScoreAt(ghostRival, elapsedMs);
     $('#gb-rival').textContent = String(rivalScore);
     $('#gb-you').textContent = String(s.score);
     const peak = Math.max(rivalScore, s.score, 1);
@@ -1553,29 +1696,32 @@ async function showResult(s: GameStats): Promise<void> {
     .map((a) => `<span class="rs-ach-item">${a.icon} ${a.name}</span>`).join('');
   // 对战结果：线上 PK 优先，其次影子对决
   const rg = $('#rs-ghost');
-  if (pkMatch) {
+  if (pkRoom) {
     $('#rs-extra').hidden = false;
     rg.hidden = false;
     rg.classList.remove('win');
     rg.textContent = '⚡ 线上 PK · 对手成绩确认中…';
-    const match = pkMatch;
+    const room = pkRoom;
     void (async () => {
       let oppRes: PkResult | null = null;
-      let oppName = match.opponent.name;
+      let oppName = pkOpp?.name ?? '对手';
+      let oppLeft = false;
       try {
         for (let i = 0; i < 8; i++) {
-          const r = await pkResult(match, { score: s.score, combo: s.maxCombo, grade }, ghostTrace);
+          const r = await pkResult(room, { score: s.score, combo: s.maxCombo, grade });
           if (r.opponent?.name) oppName = r.opponent.name;
+          oppLeft = r.opponentLeft;
           if (r.opponentResult) {
             oppRes = r.opponentResult;
             break;
           }
+          if (r.opponentLeft) break;
           await delay(2000);
         }
       } catch { /* 网络异常按当前比分裁决 */ }
       const oppScore = oppRes ? oppRes.score : (pkOpp?.score ?? 0);
       if (!oppRes) {
-        rg.textContent = `⚡ 线上 PK ${s.score} : ${oppScore} —— ${oppName} 掉线弃权，你获胜！`;
+        rg.textContent = `⚡ 线上 PK ${s.score} : ${oppScore} —— ${oppName} ${oppLeft ? '离开房间' : '掉线弃权'}，你获胜！`;
         rg.classList.add('win');
         return;
       }
@@ -1732,6 +1878,14 @@ function boot(): void {
   pendingGhost = parseGhostHash();
   refreshGhostBanner();
 
+  // 邀请链接直达：带 ?pkroom= 打开就进 PK 大厅自动加入（深链优先于海报墙/TV 首屏，
+  // 必须放在此处——setupMenu 里的直达会被后面的首屏 showScreen 盖掉）
+  if (params.get('pkroom')) {
+    pkLevelDef = null; // 关卡以房间为准
+    pkEnter();
+    return;
+  }
+
   if (role === 'cast' && code) {
     // 一键投屏接收端：直接以「手机当识别器」进海报墙（固定配对码，发起端手机自动连上）
     castCode = code;
@@ -1778,9 +1932,28 @@ function setupMenu(): void {
   });
   $<HTMLButtonElement>('#btn-pk-back').addEventListener('click', () => {
     cleanupPk();
-    showScreen('screen-menu');
+    showScreen(pendingLevel ? 'screen-prepare' : 'screen-menu');
   });
-  $<HTMLButtonElement>('#btn-pk-go').addEventListener('click', () => void pkGo());
+  $<HTMLButtonElement>('#btn-pk-create').addEventListener('click', () => void pkCreateFlow());
+  $<HTMLButtonElement>('#btn-pk-join').addEventListener('click', () => {
+    const code = $<HTMLInputElement>('#pk-code').value.trim();
+    if (!code) {
+      showToast('先输入房间码再加入');
+      return;
+    }
+    void pkJoinRoomFlow(code);
+  });
+  $<HTMLInputElement>('#pk-code').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') $<HTMLButtonElement>('#btn-pk-join').click();
+  });
+  $<HTMLButtonElement>('#btn-pk-copy').addEventListener('click', () => {
+    if (!pkRoom) return;
+    const url = pkInviteUrl(pkRoom.roomCode);
+    void navigator.clipboard?.writeText(url).then(
+      () => showToast('邀请链接已复制，发给好友来 PK ⚡'),
+      () => showToast('复制失败，请长按二维码让好友扫码'),
+    );
+  });
   $<HTMLButtonElement>('#btn-pk-cancel').addEventListener('click', () => {
     cleanupPk();
     pkShowPanel('idle');
@@ -1788,6 +1961,7 @@ function setupMenu(): void {
   $<HTMLButtonElement>('#btn-pk-abort').addEventListener('click', () => {
     cleanupPk();
     pkShowPanel('idle');
+    showScreen(pendingLevel ? 'screen-prepare' : 'screen-menu');
   });
   $('#btn-settings-jump').addEventListener('click', () => {
     settingsFrom = 'screen-prepare';
@@ -1952,7 +2126,15 @@ function setupMenu(): void {
       el.classList.remove('connected');
       return;
     }
-    // 流程：海报墙选关 → 此处配置完 → 开玩
+    // 流程：海报墙选关 → 此处配置完 → 开玩；竞技 PK → 进房间邀人对战
+    if (scene === 'pk') {
+      if (!pendingLevel) {
+        showToast('竞技 PK 需要先选一个关卡（同图对决）');
+        return;
+      }
+      pkEnter();
+      return;
+    }
     if (pendingLevel) {
       void startLevel(pendingLevel);
     } else {

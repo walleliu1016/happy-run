@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>WarmingUp 律动跑酷</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🏃</text></svg>" />
   <link rel="stylesheet" href="./src/styles.css" />
 </head>
 <body>
@@ -81,18 +82,28 @@
       <div class="prepare-wrap">
         <div class="card pk-card" id="pk-idle">
           <div class="pk-hero">⚡</div>
-          <h2>线上 PK 关卡</h2>
-          <p class="lead small">匹配对手，同关卡同时开跑，实时看到对方进度，比谁分高！<br>在线没人时自动配影子对手（按真人成绩节奏跑）。</p>
+          <h2>竞技 PK · 房间对战</h2>
+          <p class="lead small">创建房间，把二维码或链接发给好友——<br>两人同关同时开跑，界面分屏各占一半舞台，实时比拼！</p>
           <label class="opt-label" for="pk-name">我的昵称</label>
           <input id="pk-name" class="pk-name-input" maxlength="12" placeholder="输入昵称" autocomplete="off">
           <div class="btn-row center">
-            <button class="btn btn-primary" id="btn-pk-go">开始匹配 ⚡</button>
+            <button class="btn btn-primary" id="btn-pk-create">创建房间 ⚡</button>
           </div>
+          <div class="pk-join-row">
+            <input id="pk-code" class="pk-name-input pk-code-input" maxlength="6" placeholder="房间码" autocomplete="off">
+            <button class="btn btn-ghost" id="btn-pk-join">加入房间</button>
+          </div>
+          <p class="lead small pk-hint">好友发来邀请链接？打开链接会自动填入房间码加入。</p>
         </div>
-        <div class="card pk-card" id="pk-matching" hidden>
-          <div class="pk-spinner">⚡</div>
-          <h2 id="pk-match-title">匹配对手中…</h2>
-          <p class="lead" id="pk-match-sub">正在寻找在线玩家 · 0s</p>
+        <div class="card pk-card" id="pk-waiting" hidden>
+          <h2 id="pk-wait-title">房间已创建</h2>
+          <p class="lead small" id="pk-wait-lead">让好友扫二维码，或把链接发给 TA：</p>
+          <div class="pk-room-code" id="pk-room-code">------</div>
+          <canvas id="pk-qr" class="pk-qr" width="220" height="220"></canvas>
+          <div class="btn-row center">
+            <button class="btn btn-primary" id="btn-pk-copy">📋 复制邀请链接</button>
+          </div>
+          <p class="lead pk-count" id="pk-wait-sub">等待对手加入…</p>
           <div class="btn-row center">
             <button class="btn btn-ghost" id="btn-pk-cancel">取消</button>
           </div>
@@ -164,6 +175,11 @@
                 <div class="mode-icon">🔥</div>
                 <div class="mode-name">训练模式</div>
                 <div class="mode-desc">动作判定 · 连击计分 · 燃脂</div>
+              </button>
+              <button class="mode-card" data-scene="pk">
+                <div class="mode-icon">⚡</div>
+                <div class="mode-name">竞技 PK</div>
+                <div class="mode-desc">建房邀好友 · 分屏同跑 · 实时对决</div>
               </button>
             </div>
           </div>
@@ -447,6 +463,18 @@
           <div class="hud-kcal" id="hud-kcal">0 kcal</div>
           <button class="btn btn-ghost btn-small" id="btn-quit">退出</button>
         </div>
+      </div>
+      <!-- 分屏 PK：中央实时比分条 + 右半对手舞台面板 -->
+      <div class="pk-vs-bar" id="pk-vs-bar" hidden>
+        <span class="pvb-side">🙋 你 <b id="pkb-my">0</b></span>
+        <span class="pvb-lead" id="pkb-lead">咬紧比分！</span>
+        <span class="pvb-side"><b id="pkb-opp">0</b> <span id="pkb-opp-name">对手</span> ⚡</span>
+      </div>
+      <div class="pk-opp-panel" id="pk-opp-panel" hidden>
+        <div class="pop-name" id="pop-name">对手</div>
+        <div class="pop-score" id="pop-score">0</div>
+        <div class="pop-combo" id="pop-combo">0 COMBO</div>
+        <div class="pop-track"><i id="pop-fill"></i></div>
       </div>
       <div class="timeline" id="timeline">
         <div class="timeline-track" id="timeline-track"></div>

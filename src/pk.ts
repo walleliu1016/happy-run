@@ -1,19 +1,27 @@
-// 线上 PK 对战：匹配 + 实时进度同步（HTTP 轮询，服务端 server.mjs）
-export interface PkOpponent {
+// 线上 PK 竞技模式：房间邀请制（HTTP 轮询，服务端 pk-api.mjs）
+// 创建房间 → 二维码/链接邀人 → 加入即开（同谱面 seed）→ 分屏实时互报 → 结算/再来一局
+export interface PkPlayer {
   name: string;
   score: number;
   progress: number;
+  /** 对手舞台时钟（秒，分屏镜像用） */
+  t: number;
+  combo: number;
   done: boolean;
-  isBot: boolean;
 }
 
-export interface PkMatch {
+export interface PkRoomState {
   playerId: string;
-  roomId: string;
-  opponent: PkOpponent;
+  roomCode: string;
+  state: 'waiting' | 'playing' | 'finished';
   level: string;
+  difficulty: string;
   seed: number;
-  shadow: boolean;
+  startAt: number;
+  opponent: PkPlayer | null;
+  opponentLeft: boolean;
+  myRematch: boolean;
+  opponentRematch: boolean;
 }
 
 export interface PkResult {
@@ -30,44 +38,56 @@ async function api(path: string, body?: unknown): Promise<any> {
   return res.json();
 }
 
-export async function pkOnline(): Promise<number> {
-  try { return (await api('online')).online ?? 0; } catch { return 0; }
+function toState(playerId: string, r: any): PkRoomState {
+  return { playerId, ...r };
 }
 
-/** 进入匹配：排队 → 轮询到配真人或影子（服务端 6 秒兜底） */
-export async function pkJoin(name: string, pool: string[], onTick: (sec: number) => void): Promise<PkMatch> {
-  const { playerId } = await api('join', { name, pool });
-  const t0 = Date.now();
-  for (;;) {
-    const st = await api(`status?playerId=${playerId}`);
-    if (st.status === 'matched' || st.status === 'shadow') {
-      return {
-        playerId,
-        roomId: st.roomId,
-        opponent: st.opponent,
-        level: st.level,
-        seed: st.seed,
-        shadow: st.status === 'shadow',
-      };
-    }
-    onTick(Math.floor((Date.now() - t0) / 1000));
-    await new Promise((r) => setTimeout(r, 1000));
-    if (Date.now() - t0 > 20000) throw new Error('match timeout');
-  }
+export async function pkOnline(): Promise<{ rooms: number; players: number }> {
+  try { return await api('online'); } catch { return { rooms: 0, players: 0 }; }
 }
 
-/** 对战中每秒互报进度 */
-export async function pkSync(m: PkMatch, score: number, progress: number, done: boolean): Promise<PkOpponent> {
-  const r = await api('sync', { playerId: m.playerId, roomId: m.roomId, score, progress, done });
+/** 创建房间（房主）：拿房码去邀人 */
+export async function pkCreateRoom(name: string, level: string, difficulty: string): Promise<PkRoomState> {
+  const r = await api('room', { name, level, difficulty });
+  return toState(r.playerId, r);
+}
+
+/** 加入房间（扫码 / 链接 / 输房码）：两人到齐即进入开跑倒计时 */
+export async function pkJoinRoom(roomCode: string, name: string): Promise<PkRoomState> {
+  const r = await api('room-join', { roomCode: roomCode.trim().toUpperCase(), name });
+  return toState(r.playerId, r);
+}
+
+/** 房间状态轮询（等对手 / 再来一局 / 对手离开） */
+export async function pkRoomStatus(m: { playerId: string }): Promise<PkRoomState> {
+  const r = await api(`room-status?playerId=${encodeURIComponent(m.playerId)}`);
+  return toState(m.playerId, r);
+}
+
+/** 对局中每秒互报（比分 / 进度 / 舞台时钟） */
+export async function pkSync(
+  m: Pick<PkRoomState, 'playerId' | 'roomCode'>,
+  s: { score: number; progress: number; t: number; combo: number; done: boolean },
+): Promise<PkPlayer | null> {
+  const r = await api('sync', { playerId: m.playerId, roomCode: m.roomCode, ...s });
   return r.opponent;
 }
 
-/** 跑完上报成绩，拿对手成绩（可能 null=对手未完） */
-export async function pkResult(m: PkMatch, r: PkResult, trace: number[][]): Promise<{ opponentResult: PkResult | null; opponent: PkOpponent }> {
-  return api('result', { playerId: m.playerId, roomId: m.roomId, score: r.score, combo: r.combo, grade: r.grade, trace });
+/** 完赛上报（幂等）；对手未交卷时 opponentResult 为 null */
+export async function pkResult(
+  m: Pick<PkRoomState, 'playerId' | 'roomCode'>,
+  r: PkResult,
+): Promise<{ opponentResult: PkResult | null; opponent: PkPlayer | null; opponentLeft: boolean }> {
+  return api('result', { playerId: m.playerId, roomCode: m.roomCode, ...r });
 }
 
-export async function pkLeave(m: PkMatch | null): Promise<void> {
-  if (!m) return;
-  try { await api('leave', { playerId: m.playerId }); } catch { /* 忽略 */ }
+/** 再来一局：双方都点 → 同房间新谱面重开 */
+export async function pkRematch(m: Pick<PkRoomState, 'playerId' | 'roomCode'>): Promise<{ both: boolean }> {
+  const r = await api('rematch', { playerId: m.playerId, roomCode: m.roomCode });
+  return { both: !!r.both };
+}
+
+export async function pkLeave(m: { playerId: string; roomCode: string } | null): Promise<void> {
+  if (!m?.playerId) return;
+  try { await api('leave', { playerId: m.playerId, roomCode: m.roomCode }); } catch { /* 忽略 */ }
 }

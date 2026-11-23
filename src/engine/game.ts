@@ -18,6 +18,8 @@ export interface GameOpts {
   cameraMode?: 'first' | 'third';
   /** 砖块形态：block 经典 / wall 墙来墙板 / glass 玻璃桥半透明 */
   brickStyle?: 'block' | 'wall' | 'glass';
+  /** 分屏对战：界面对半切，右半是对手舞台（同一世界摆到对手时钟镜像渲染） */
+  split?: boolean;
 }
 
 export interface GameHooks {
@@ -295,6 +297,11 @@ export class Game {
   private cameraMode: 'first' | 'third';
   /** 砖块形态：block 经典 / wall 墙来墙板 / glass 玻璃桥 */
   private brickStyle: 'block' | 'wall' | 'glass';
+  /** 分屏对战：右半屏 = 对手舞台（同一世界按时钟平移镜像） */
+  private split: boolean;
+  /** 对手舞台时钟（秒）：sync 每秒上报后按墙钟推进插值 */
+  private oppT = 0;
+  private oppWallAt = 0;
   private bloomPass: UnrealBloomPass | null = null;
   // 自适应画质（连续低帧 → 降载）
   private degraded = false;
@@ -324,6 +331,7 @@ export class Game {
   ) {
     this.cameraMode = opts?.cameraMode ?? 'third';
     this.brickStyle = opts?.brickStyle ?? 'block';
+    this.split = opts?.split ?? false;
     this.look = look ?? { theme: 'neon', skin: 'mage' };
     this.pal = this.look.theme === 'custom' && this.look.bgPalette
       ? this.look.bgPalette
@@ -836,7 +844,8 @@ export class Game {
     const h = this.canvas.clientHeight || 720;
     this.renderer.setSize(w, h, false);
     this.composer.setSize(w, h);
-    const aspect = w / h;
+    // 分屏对战：每半屏各自持一半宽，机位按半屏比例取景
+    const aspect = this.split ? (w / 2) / h : w / h;
     this.camera.aspect = aspect;
     // 窄屏/竖屏自适应：加大视场 + 后撤抬高镜头，保车道与块完整入画
     const t = Math.max(0, Math.min(1, (1.45 - aspect) / 0.95));
@@ -894,6 +903,12 @@ export class Game {
   /** 玩家横移信号（-1..1）：镜头随身体位置轻微转向/倾斜 */
   setSteer(v: number): void {
     this.steerTarget = Math.max(-1, Math.min(1, v));
+  }
+
+  /** 对手舞台时钟（秒）：分屏右半镜像用；sync 到达时刷新，其间按墙钟插值推进 */
+  setOpponent(t: number): void {
+    this.oppT = t;
+    this.oppWallAt = Date.now();
   }
 
   /** 红灯乱动惩罚：清连击 + 震屏 + 低警示音（LV4 RED LIGHT GREEN LIGHT） */
@@ -1147,7 +1162,7 @@ export class Game {
       this.stats.combo = 0;
       this.stats.multiplier = 1;
       this.stats.misses++;
-      if (this.scene === 'train') {
+      if (this.scene !== 'class') {
         this.shake = 0.5;
       }
     } else {
@@ -1422,32 +1437,11 @@ export class Game {
       }
     }
 
-    // 动作块沿时间轴推进（确定性位置 = songTime 的纯函数；踏板保车道直线，玻璃/墙板向中心漏斗汇聚）
+    // 动作块/世界定位：位置 = songTime 纯函数（分屏对战时同一函数把世界摆到对手时钟）
+    this.layoutWorldAt(this.visT);
     const bpm = this.chart.bpm;
     for (const br of this.bricks) {
-      const z = (eventTime(this.chart, br.ev) - this.visT) * SPEED + RING_Z;
-      br.group.position.z = z;
-      const air = this.brickStyle === 'block' && isAirAction(br.ev.action);
-      if (this.brickStyle === 'block') {
-        br.group.position.x = br.baseX; // 纯透视车道，不漏斗汇聚
-        if (air) {
-          // 弧线入场（idea 4）：远处更高、抛物线落位 + 轻微浮动
-          const arc = z > RING_Z ? Math.min(1.4, 0.00013 * (z - RING_Z) * (z - RING_Z)) : 0;
-          br.group.position.y = arc + Math.sin(this.visT * 2.2 + br.baseX * 0.6) * 0.14;
-        }
-      } else {
-        const t = Math.max(0, Math.min(1, (120 - z) / 114));
-        br.group.position.x = br.baseX * (1 - 0.78 * t);
-      }
-      // 预判光柱渐隐（idea 6）：远亮近隐，靠近判定线消失
-      if (br.pillar) {
-        br.pillar.opacity = z > RING_Z ? Math.max(0, Math.min(0.42, (z - RING_Z) / 70)) : 0;
-      }
-      if (br.hit) {
-        br.group.visible = false;
-        continue;
-      }
-      br.group.visible = z > -4.5 && z < 620;
+      if (br.hit) continue;
       // 未命中：穿过判定线后缩没（poof）；未判定时随节拍呼吸（idea 2）
       if (br.judged) {
         const s = Math.max(0.001, br.group.scale.x - dt * 3);
@@ -1475,15 +1469,8 @@ export class Game {
 
     this.mixer?.update(vdt);
 
-    // 世界滚动（路面贴图 + 拱门）
-    this.runwayTex.offset.y = (this.visT * SPEED * 30) / 260;
+    // 装饰自转（增量；位置由 layoutWorldAt 按时钟摆）
     this.scene3.children.forEach((c) => {
-      if (c.userData.baseZ !== undefined) {
-        const span = 7 * 26;
-        let z = (c.userData.baseZ - this.visT * SPEED * 0.62) % span;
-        if (z < -12) z += span;
-        c.position.z = z;
-      }
       if (c.userData.spin) c.rotation.y += (c.userData.spin as number) * dt;
     });
 
@@ -1574,7 +1561,34 @@ export class Game {
       this.renderer.toneMappingExposure += (0.92 - this.renderer.toneMappingExposure) * 0.2;
     }
 
-    this.composer.render();
+    if (this.split) {
+      // 分屏双舞台：左半我的时钟；右半同一世界摆到对手时钟（scissor 直渲，对战去 bloom 保帧率）
+      const r = this.renderer;
+      const w = this.canvas.clientWidth || 1280;
+      const h = this.canvas.clientHeight || 720;
+      const hw = Math.floor(w / 2);
+      r.setScissorTest(true);
+      r.setViewport(0, 0, hw, h);
+      r.setScissor(0, 0, hw, h);
+      r.render(this.scene3, this.camera);
+      // 右半：对手舞台（位置纯函数摆到对手时钟 → 渲完摆回；碎裂缩放/淡出状态一并存还）
+      const oppT = Math.min(this.endTime, this.oppT + (Date.now() - this.oppWallAt) / 1000);
+      const saved = this.bricks.map((b) => [b.group.scale.x, b.bodyMat.opacity] as const);
+      this.layoutWorldAt(oppT, true);
+      r.setViewport(hw, 0, w - hw, h);
+      r.setScissor(hw, 0, w - hw, h);
+      r.render(this.scene3, this.camera);
+      this.layoutWorldAt(this.visT, false);
+      this.bricks.forEach((b, i) => {
+        b.group.scale.setScalar(saved[i][0]);
+        b.bodyMat.opacity = saved[i][1];
+      });
+      r.setScissorTest(false);
+      r.setViewport(0, 0, w, h);
+      r.setScissor(0, 0, w, h);
+    } else {
+      this.composer.render();
+    }
     this.renderCoach(dt);
 
     if (songT > this.endTime) {
@@ -1595,6 +1609,50 @@ export class Game {
     this.renderer.getSize(size);
     this.composer.setSize(size.x, size.y);
     if (this.bloomPass) this.bloomPass.enabled = false;
+  }
+
+  /** 世界定位：位置 = songTime 纯函数。分屏对战时同一函数把世界摆到对手时钟再摆回来 */
+  private layoutWorldAt(t: number, forOpp = false): void {
+    // 世界滚动（路面贴图 + 拱门）
+    this.runwayTex.offset.y = (t * SPEED * 30) / 260;
+    for (const c of this.scene3.children) {
+      if (c.userData.baseZ !== undefined) {
+        const span = 7 * 26;
+        let z = (c.userData.baseZ - t * SPEED * 0.62) % span;
+        if (z < -12) z += span;
+        c.position.z = z;
+      }
+    }
+    // 动作块沿时间轴推进（踏板保车道直线，玻璃/墙板向中心漏斗汇聚）
+    for (const br of this.bricks) {
+      const evT = eventTime(this.chart, br.ev);
+      const z = (evT - t) * SPEED + RING_Z;
+      br.group.position.z = z;
+      const air = this.brickStyle === 'block' && isAirAction(br.ev.action);
+      if (this.brickStyle === 'block') {
+        br.group.position.x = br.baseX; // 纯透视车道，不漏斗汇聚
+        if (air) {
+          // 弧线入场（idea 4）：远处更高、抛物线落位 + 轻微浮动
+          const arc = z > RING_Z ? Math.min(1.4, 0.00013 * (z - RING_Z) * (z - RING_Z)) : 0;
+          br.group.position.y = arc + Math.sin(t * 2.2 + br.baseX * 0.6) * 0.14;
+        }
+      } else {
+        const funnel = Math.max(0, Math.min(1, (120 - z) / 114));
+        br.group.position.x = br.baseX * (1 - 0.78 * funnel);
+      }
+      // 预判光柱渐隐（idea 6）：远亮近隐，靠近判定线消失
+      if (br.pillar) {
+        br.pillar.opacity = z > RING_Z ? Math.max(0, Math.min(0.42, (z - RING_Z) / 70)) : 0;
+      }
+      if (forOpp) {
+        // 对手舞台：对手已跑过的块不再显示（已判定），其余照常飞来
+        br.group.visible = evT > t - 0.5 && z > -4.5 && z < 620;
+      } else if (br.hit) {
+        br.group.visible = false;
+      } else {
+        br.group.visible = z > -4.5 && z < 620;
+      }
+    }
   }
 
   /** 左下角教练视口：scissor 裁剪直渲（保留主场景像素，仅清深度） */
