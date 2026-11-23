@@ -44,7 +44,10 @@ body {
   background: linear-gradient(135deg, var(--blue), var(--purple));
   display: inline-block;
 }
-.topbar-sub { font-size: clamp(13px, 1.4vw, 22px); color: var(--ink-2); font-weight: 500; }
+.topbar-sub {
+  font-size: clamp(13px, 1.4vw, 22px); color: var(--ink-2); font-weight: 500;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 42%; text-align: right;
+}
 
 /* ===== 文字 ===== */
 .display { font-size: clamp(27px, 3.6vw, 60px); line-height: 1.12; font-weight: 700; letter-spacing: -1px; }
@@ -762,24 +765,52 @@ body {
   letter-spacing: 0.2px;
 }
 
-/* 开玩准备：所选关卡信息条 */
-.prepare-head { display: flex; align-items: center; gap: clamp(14px, 1.6vw, 26px); }
-.ph-emoji {
-  width: clamp(56px, 5.4vw, 88px); height: clamp(56px, 5.4vw, 88px);
-  border-radius: 18px; flex: none;
-  background: linear-gradient(160deg, var(--lp-accent, #ff9500), rgba(20, 18, 31, 0.85));
-  display: flex; align-items: center; justify-content: center;
-  font-size: clamp(28px, 2.8vw, 46px);
+/* ===== 开玩准备：关卡横幅 + 紧凑选项（单屏聚焦，不照搬配置页） ===== */
+.prepare-wrap {
+  flex: 1; overflow-y: auto; min-height: 0;
+  display: flex; flex-direction: column; gap: clamp(14px, 1.8vw, 26px);
+  width: 100%; max-width: 920px; margin: 0 auto;
+  padding: clamp(8px, 1vw, 14px) clamp(16px, 3vw, 56px) clamp(18px, 2.6vw, 44px);
 }
-.ph-text { flex: 1; display: flex; flex-direction: column; gap: 3px; min-width: 0; }
-.ph-text b { font-size: clamp(18px, 1.8vw, 28px); letter-spacing: -0.4px; }
-.ph-text span { color: var(--ink-2); font-size: clamp(12px, 1.15vw, 17px); }
-.ph-best {
-  flex: none; padding: 9px 18px; border-radius: 999px;
-  background: var(--blue-soft, rgba(0, 113, 227, 0.12)); color: var(--blue, #0071e3);
-  font-weight: 700; font-size: clamp(13px, 1.2vw, 18px);
+.prepare-hero {
+  position: relative; overflow: hidden; border-radius: 22px;
+  background: linear-gradient(150deg, var(--lp-accent, #ff9500) 0%, #14121f 82%);
+  color: #fff; padding: clamp(18px, 2.2vw, 34px);
+  display: flex; align-items: center; gap: clamp(16px, 2vw, 30px);
 }
-.ph-best.new { background: rgba(255, 149, 0, 0.12); color: #b45d00; }
+.phb-emoji { font-size: clamp(52px, 6vw, 96px); filter: drop-shadow(0 8px 22px rgba(0, 0, 0, 0.35)); line-height: 1; }
+.phb-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; padding-right: clamp(110px, 13vw, 190px); }
+.phb-lv { font-size: clamp(12px, 1.05vw, 17px); font-weight: 800; letter-spacing: 2px; opacity: 0.8; }
+.phb-name { font-size: clamp(26px, 2.8vw, 46px); font-weight: 900; letter-spacing: -0.6px; line-height: 1.1; }
+.phb-sub { color: #ffd60a; font-weight: 700; font-size: clamp(12px, 1.15vw, 18px); }
+.phb-best {
+  position: absolute; top: clamp(12px, 1.4vw, 20px); right: clamp(12px, 1.4vw, 20px);
+  padding: 10px 18px; border-radius: 999px;
+  background: rgba(255, 255, 255, 0.16); backdrop-filter: blur(6px);
+  color: #fff; font-weight: 800; font-size: clamp(13px, 1.2vw, 18px);
+}
+.phb-best.new { background: rgba(255, 214, 10, 0.22); color: #ffd60a; }
+/* 窄屏：徽章换行到横幅第二行右对齐，不跟标题抢宽度 */
+@media (max-width: 560px) {
+  .prepare-hero { flex-wrap: wrap; }
+  .phb-text { padding-right: 0; flex: 1 1 calc(100% - 68px); }
+  .phb-best { position: static; margin-left: auto; margin-top: 8px; }
+}
+
+.prepare-opts { display: flex; flex-direction: column; gap: clamp(12px, 1.4vw, 20px); }
+.opt-label { font-size: clamp(15px, 1.4vw, 21px); font-weight: 800; letter-spacing: -0.2px; margin-bottom: 10px; }
+.opt-cards { gap: clamp(10px, 1.2vw, 16px); }
+.opt-cards.diff-cards { grid-template-columns: repeat(3, 1fr); }
+.opt-cards .mode-card { padding: clamp(12px, 1.2vw, 18px) clamp(12px, 1.3vw, 20px); }
+.opt-cards .mode-icon { font-size: clamp(22px, 2.2vw, 34px); }
+.opt-cards .mode-name { margin: 6px 0 3px; }
+.opt-cards .mode-desc {
+  font-size: clamp(11px, 1vw, 14px); white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis;
+}
+.adv-adjust { margin-top: 10px; }
+.adv-adjust summary { cursor: pointer; font-size: clamp(12px, 1.1vw, 16px); color: var(--ink-2); font-weight: 600; }
+.adv-adjust .music-adjust { margin-top: 8px; }
 
 /* 漫画速度线（四角） */
 .speed-lines { position: absolute; inset: 0; pointer-events: none; z-index: 5; overflow: hidden; }
@@ -1188,6 +1219,7 @@ body {
 .tv-mode #screen-profile,
 .tv-mode #screen-cast,
 .tv-mode #screen-prepare,
+.tv-mode #screen-settings,
 .tv-mode #screen-result {
   zoom: 1.18;
   height: calc(100vh / 1.18);
@@ -1228,11 +1260,11 @@ body {
 /* 超小屏（≤430px）：模式卡保持双列紧凑横排 */
 @media (max-width: 430px) {
   .mode-cards { grid-template-columns: 1fr 1fr; }
-  .src-cards, .diff-cards { grid-template-columns: repeat(3, 1fr); }
+  .src-cards { grid-template-columns: 1fr; } /* 源卡单列，名字一行放得下 */
+  .diff-cards { grid-template-columns: repeat(3, 1fr); }
   .mode-card { padding: 8px 10px; column-gap: 8px; }
   .mode-icon { font-size: 20px; width: 32px; }
   .mode-name { font-size: 13.5px; }
   .mode-desc { font-size: 10.5px; }
-  .diff-cards { grid-template-columns: repeat(3, 1fr); }
   .cal-grid { gap: 4px; }
 }

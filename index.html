@@ -3,13 +3,12 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <title>WarmingUp 律动跑酷 · 体感版</title>
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏃</text></svg>" />
+  <title>WarmingUp 律动跑酷</title>
   <link rel="stylesheet" href="./src/styles.css" />
 </head>
 <body>
   <div id="app">
-    <!-- ============ 屏幕 1：设备体检 ============ -->
+    <!-- ============ 屏幕 1：设备体检（设置里的工具页） ============ -->
     <section class="screen" id="screen-check">
       <header class="topbar">
         <div class="topbar-left">
@@ -41,7 +40,7 @@
       </div>
     </section>
 
-    <!-- ============ 屏幕 2：模式选择（App 首屏） ============ -->
+    <!-- ============ 屏幕 2：关卡海报墙（App 首屏） ============ -->
     <section class="screen active" id="screen-menu">
       <header class="topbar">
         <div class="topbar-left">
@@ -49,6 +48,7 @@
         </div>
         <div class="topbar-right">
           <button class="star-chip" id="star-chip" title="星星：每局都赚，用来解锁装扮">⭐ <b id="star-count">0</b></button>
+          <button class="btn btn-ghost btn-small" id="btn-settings">⚙️ 设置</button>
           <button class="btn btn-ghost btn-small" id="btn-profile">我的档案</button>
         </div>
       </header>
@@ -69,7 +69,7 @@
       </div>
     </section>
 
-    <!-- ============ 屏幕 2：开玩准备（点关卡后进：模式 / 识别 / 装备） ============ -->
+    <!-- ============ 屏幕 2.5：开玩准备（只留跟这局有关的选择） ============ -->
     <section class="screen" id="screen-prepare">
       <header class="topbar">
         <div class="topbar-left">
@@ -78,43 +78,119 @@
         </div>
         <div class="topbar-sub" id="prepare-sub">开玩准备</div>
       </header>
-      <div class="menu-wrap">
-        <div class="prepare-head card" id="prepare-head"></div>
-        <section class="mstep" data-step="1">
-          <h2 class="sec-title">🎮 这局怎么玩</h2>
-          <h3 class="h2">玩给谁？</h3>
-          <div class="mode-cards">
-            <button class="mode-card selected" data-scene="class">
-              <div class="mode-icon">🏫</div>
-              <div class="mode-name">课堂模式</div>
-              <div class="mode-desc">大字口令 · 全班一起动<br/>不计分不问责，主打防困</div>
-            </button>
-            <button class="mode-card" data-scene="train">
-              <div class="mode-icon">🔥</div>
-              <div class="mode-name">训练模式</div>
-              <div class="mode-desc">动作判定 · 连击计分<br/>卡路里统计，跟练燃脂</div>
-            </button>
+      <div class="prepare-wrap">
+        <div class="prepare-hero" id="prepare-hero"></div>
+
+        <div class="prepare-opts">
+          <div class="opt-block">
+            <h3 class="opt-label">⚡ 难度（砖块密度）</h3>
+            <div class="mode-cards diff-cards opt-cards">
+              <button class="mode-card" data-difficulty="easy">
+                <div class="mode-icon">🌱</div>
+                <div class="mode-name">轻松</div>
+                <div class="mode-desc">踩大拍为主 · 适合初学</div>
+              </button>
+              <button class="mode-card selected" data-difficulty="normal">
+                <div class="mode-icon">🔥</div>
+                <div class="mode-name">标准</div>
+                <div class="mode-desc">主歌疏副歌密 · 完整卡点</div>
+              </button>
+              <button class="mode-card" data-difficulty="hard">
+                <div class="mode-icon">⚡</div>
+                <div class="mode-name">挑战</div>
+                <div class="mode-desc">全拍 + 反拍砖 · 高能冲分</div>
+              </button>
+            </div>
           </div>
-          <h3 class="h2">难度（砖块密度）</h3>
-          <div class="mode-cards diff-cards">
-            <button class="mode-card" data-difficulty="easy">
-              <div class="mode-icon">🌱</div>
-              <div class="mode-name">轻松</div>
-              <div class="mode-desc">踩大拍为主<br/>适合初学/低年级</div>
-            </button>
-            <button class="mode-card selected" data-difficulty="normal">
-              <div class="mode-icon">🔥</div>
-              <div class="mode-name">标准</div>
-              <div class="mode-desc">主歌疏 · 副歌密<br/>完整卡点体验</div>
-            </button>
-            <button class="mode-card" data-difficulty="hard">
-              <div class="mode-icon">⚡</div>
-              <div class="mode-name">挑战</div>
-              <div class="mode-desc">全拍 + 反拍砖<br/>高能踩点冲分</div>
-            </button>
+          <div class="opt-block">
+            <h3 class="opt-label">🎮 这局怎么玩</h3>
+            <div class="mode-cards opt-cards">
+              <button class="mode-card selected" data-scene="class">
+                <div class="mode-icon">🏫</div>
+                <div class="mode-name">课堂模式</div>
+                <div class="mode-desc">大字口令 · 全班一起动 · 不计分</div>
+              </button>
+              <button class="mode-card" data-scene="train">
+                <div class="mode-icon">🔥</div>
+                <div class="mode-name">训练模式</div>
+                <div class="mode-desc">动作判定 · 连击计分 · 燃脂</div>
+              </button>
+            </div>
           </div>
-        </section>
-        <section class="mstep" data-step="2">
+        </div>
+
+        <!-- 自由练习专属：这局的音乐与节奏（关卡挑战不需要） -->
+        <div class="card side-card" id="music-card" hidden>
+          <h3>🎵 这局的音乐</h3>
+          <p class="lead small">选一首节奏感强的音乐（mp3/wav），自动识别 BPM 并把障碍铺在拍点上。</p>
+          <input type="file" id="music-file" accept="audio/*" hidden />
+          <div class="btn-row music-btns">
+            <button class="btn btn-ghost btn-small" id="btn-music-pick">选择音乐文件</button>
+            <button class="btn btn-ghost btn-small" id="btn-music-clear">恢复默认节拍</button>
+          </div>
+          <div class="music-info" id="music-info" hidden>
+            <div class="music-name" id="music-name">—</div>
+            <div class="music-analysis" id="music-analysis">分析中…</div>
+            <div class="music-structure" id="music-structure">段落：—</div>
+            <details class="adv-adjust">
+              <summary>高级调节（BPM / 节拍偏移）</summary>
+              <div class="music-adjust">
+                <div class="adj-row">
+                  <span class="adj-label">BPM</span>
+                  <button class="adj-btn" data-adj="bpm:-1">−</button>
+                  <span class="adj-val" id="music-bpm">120</span>
+                  <button class="adj-btn" data-adj="bpm:1">＋</button>
+                </div>
+                <div class="adj-row">
+                  <span class="adj-label">节拍偏移</span>
+                  <button class="adj-btn" data-adj="off:-0.05">−</button>
+                  <span class="adj-val" id="music-off">0.00s</span>
+                  <button class="adj-btn" data-adj="off:0.05">＋</button>
+                </div>
+              </div>
+            </details>
+          </div>
+
+          <!-- 节奏工坊：你给音乐 → 我出节奏（预览即实战谱面） -->
+          <div class="chart-lab">
+            <div class="lab-title">🎛 节奏工坊<span class="lab-sub" id="lab-sub">内置节拍 · 全身综合</span></div>
+            <div class="style-chips" id="style-chips">
+              <button class="style-chip selected" data-style="mix">全身综合</button>
+              <button class="style-chip" data-style="punch">拳击为主</button>
+              <button class="style-chip" data-style="jump">跳跃为主</button>
+              <button class="style-chip" data-style="cardio">燃脂冲刺</button>
+            </div>
+            <div class="style-desc" id="style-desc">五种动作均衡编排，全身都练到</div>
+            <canvas id="chart-preview" width="560" height="168"></canvas>
+            <div class="chart-stats" id="chart-stats">—</div>
+            <div class="btn-row music-btns">
+              <button class="btn btn-ghost btn-small" id="btn-chart-regen">↻ 重新生成</button>
+              <button class="btn btn-ghost btn-small" id="btn-chart-export">⤓ 导出谱面</button>
+            </div>
+            <p class="tip">横轴 = 音乐时间，5 行 = 5 种动作块（长条为冲刺段），金色块为 Gold Move。预览即实战：开局就按这张谱出块。</p>
+          </div>
+        </div>
+      </div>
+      <footer class="menu-footer">
+        <div class="menu-summary" id="menu-summary"></div>
+        <div class="menu-actions">
+          <button class="btn btn-ghost" id="btn-settings-jump">⚙️ 设置</button>
+          <button class="btn btn-primary btn-big" id="btn-start">开始挑战</button>
+        </div>
+      </footer>
+    </section>
+
+    <!-- ============ 屏幕 2.7：设置（通用配置，一次配好） ============ -->
+    <section class="screen" id="screen-settings">
+      <header class="topbar">
+        <div class="topbar-left">
+          <button class="btn btn-ghost btn-small back-btn" data-back>← 返回</button>
+          <div class="brand"><span class="brand-dot"></span>WarmingUp 律动跑酷</div>
+        </div>
+        <div class="topbar-sub">⚙️ 设置</div>
+      </header>
+      <div class="menu-wrap settings-wrap">
+        <section class="mstep">
           <h2 class="sec-title">📷 动作怎么识别</h2>
           <h3 class="h2">识别器用哪个？</h3>
           <div class="mode-cards src-cards">
@@ -146,103 +222,49 @@
             <button class="btn btn-ghost" id="btn-back-check">🔧 设备体检</button>
           </div>
         </section>
-        <section class="mstep" data-step="3">
-          <h2 class="sec-title">🎨 配齐装备上场</h2>
-          <div class="card side-card" id="music-card">
-            <h3>🎵 定制音乐</h3>
-            <p class="lead small">选一首节奏感强的音乐（mp3/wav），自动识别 BPM 并把障碍铺在拍点上。</p>
-            <input type="file" id="music-file" accept="audio/*" hidden />
-            <div class="btn-row music-btns">
-              <button class="btn btn-ghost btn-small" id="btn-music-pick">选择音乐文件</button>
-              <button class="btn btn-ghost btn-small" id="btn-music-clear">恢复默认节拍</button>
-            </div>
-            <div class="music-info" id="music-info" hidden>
-              <div class="music-name" id="music-name">—</div>
-              <div class="music-analysis" id="music-analysis">分析中…</div>
-              <div class="music-structure" id="music-structure">段落：—</div>
-              <div class="music-adjust">
-                <div class="adj-row">
-                  <span class="adj-label">BPM</span>
-                  <button class="adj-btn" data-adj="bpm:-1">−</button>
-                  <span class="adj-val" id="music-bpm">120</span>
-                  <button class="adj-btn" data-adj="bpm:1">＋</button>
-                </div>
-                <div class="adj-row">
-                  <span class="adj-label">节拍偏移</span>
-                  <button class="adj-btn" data-adj="off:-0.05">−</button>
-                  <span class="adj-val" id="music-off">0.00s</span>
-                  <button class="adj-btn" data-adj="off:0.05">＋</button>
-                </div>
-              </div>
-            </div>
-
-            <!-- 节奏工坊：你给音乐 → 我出节奏（预览即实战谱面） -->
-            <div class="chart-lab">
-              <div class="lab-title">🎛 节奏工坊<span class="lab-sub" id="lab-sub">内置节拍 · 全身综合</span></div>
-              <div class="style-chips" id="style-chips">
-                <button class="style-chip selected" data-style="mix">全身综合</button>
-                <button class="style-chip" data-style="punch">拳击为主</button>
-                <button class="style-chip" data-style="jump">跳跃为主</button>
-                <button class="style-chip" data-style="cardio">燃脂冲刺</button>
-              </div>
-              <div class="style-desc" id="style-desc">五种动作均衡编排，全身都练到</div>
-              <canvas id="chart-preview" width="560" height="168"></canvas>
-              <div class="chart-stats" id="chart-stats">—</div>
-              <div class="btn-row music-btns">
-                <button class="btn btn-ghost btn-small" id="btn-chart-regen">↻ 重新生成</button>
-                <button class="btn btn-ghost btn-small" id="btn-chart-export">⤓ 导出谱面</button>
-              </div>
-              <p class="tip">横轴 = 音乐时间，5 行 = 5 种动作块（长条为冲刺段），金色块为 Gold Move。预览即实战：开局就按这张谱出块。</p>
+        <section class="mstep">
+          <h2 class="sec-title">🎨 主题装扮</h2>
+          <p class="lead small">换背景、换领操员——喜欢的动画片场景和人物都能搬进热身场。玩局赚 ⭐ 可在「我的档案」解锁新装扮。</p>
+          <input type="file" id="bg-file" accept="image/*" hidden />
+          <input type="file" id="skin-file" accept="image/*" hidden />
+          <div class="look-row">
+            <div class="look-label">背景</div>
+            <div class="look-chips">
+              <button class="look-chip selected" data-bg="neon">🏜 霓虹峡谷</button>
+              <button class="look-chip" data-bg="space">🌌 星际漫游</button>
+              <button class="look-chip" data-bg="candy">🍬 糖果甜心</button>
+              <button class="look-chip" data-bg="forest">🌿 绿野仙踪</button>
+              <button class="look-chip" data-bg="custom">🖼 自定义图片</button>
             </div>
           </div>
-
-          <!-- 主题装扮：背景 + 领操员 -->
-          <div class="card side-card" id="look-card">
-            <h3>🎨 主题装扮</h3>
-            <p class="lead small">换背景、换领操员——喜欢的动画片场景和人物都能搬进热身场。</p>
-            <input type="file" id="bg-file" accept="image/*" hidden />
-            <input type="file" id="skin-file" accept="image/*" hidden />
-            <div class="look-row">
-              <div class="look-label">背景</div>
-              <div class="look-chips">
-                <button class="look-chip selected" data-bg="neon">🏜 霓虹峡谷</button>
-                <button class="look-chip" data-bg="space">🌌 星际漫游</button>
-                <button class="look-chip" data-bg="candy">🍬 糖果甜心</button>
-                <button class="look-chip" data-bg="forest">🌿 绿野仙踪</button>
-                <button class="look-chip" data-bg="custom">🖼 自定义图片</button>
-              </div>
+          <div class="look-row">
+            <div class="look-label">领操员</div>
+            <div class="look-chips">
+              <button class="look-chip selected" data-skin="mage">🧙 魔法师</button>
+              <button class="look-chip" data-skin="flame">🔥 烈焰勇士</button>
+              <button class="look-chip" data-skin="frost">❄️ 冰雪精灵</button>
+              <button class="look-chip" data-skin="nature">🌱 自然之灵</button>
+              <button class="look-chip" data-skin="candy">🎀 糖果甜心</button>
+              <button class="look-chip" data-skin="gold">⭐ 黄金战士</button>
+              <button class="look-chip" data-skin="custom">🖼 自定义人物</button>
             </div>
-            <div class="look-row">
-              <div class="look-label">领操员</div>
-              <div class="look-chips">
-                <button class="look-chip selected" data-skin="mage">🧙 魔法师</button>
-                <button class="look-chip" data-skin="flame">🔥 烈焰勇士</button>
-                <button class="look-chip" data-skin="frost">❄️ 冰雪精灵</button>
-                <button class="look-chip" data-skin="nature">🌱 自然之灵</button>
-                <button class="look-chip" data-skin="candy">🎀 糖果甜心</button>
-                <button class="look-chip" data-skin="gold">⭐ 黄金战士</button>
-                <button class="look-chip" data-skin="custom">🖼 自定义人物</button>
-              </div>
-            </div>
-            <div class="btn-row music-btns">
-              <button class="btn btn-ghost btn-small" id="btn-look-reset">恢复默认装扮</button>
-            </div>
-            <p class="tip">装扮自动记住，下次打开还在；自定义图片只存本机浏览器。自定义人物会替代 3D 教练，动作口令和时间轴照常提示。</p>
           </div>
-          <details class="card side-card tool-card">
-            <summary>⏱ 判定校准</summary>
-            <div class="tool-body">
-              <p class="lead small">总判定偏早/偏晚？拖动补偿，或跟节拍自动测一次。</p>
-              <div class="calib-row">
-                <input type="range" id="calib-range" min="-300" max="300" step="10" value="0" />
-                <span class="calib-val" id="calib-val">+0ms</span>
-              </div>
-              <div class="btn-row music-btns">
-                <button class="btn btn-ghost btn-small" id="btn-calib">跟节拍自动校准</button>
-              </div>
-              <p class="tip">摄像头识别偏晚 → 往右调（正值提前判定）。</p>
-            </div>
-          </details>
+          <div class="btn-row music-btns">
+            <button class="btn btn-ghost btn-small" id="btn-look-reset">恢复默认装扮</button>
+          </div>
+          <p class="tip">装扮自动记住，下次打开还在；自定义图片只存本机浏览器。自定义人物会替代 3D 教练，动作口令和时间轴照常提示。</p>
+        </section>
+        <section class="mstep">
+          <h2 class="sec-title">⏱ 校准与帮助</h2>
+          <h3 class="h2">判定校准</h3>
+          <p class="lead small">总判定偏早/偏晚？拖动补偿，或跟节拍自动测一次。摄像头识别偏晚 → 往右调（正值提前判定）。</p>
+          <div class="calib-row">
+            <input type="range" id="calib-range" min="-300" max="300" step="10" value="0" />
+            <span class="calib-val" id="calib-val">+0ms</span>
+          </div>
+          <div class="btn-row music-btns">
+            <button class="btn btn-ghost btn-small" id="btn-calib">跟节拍自动校准</button>
+          </div>
           <details class="card side-card tool-card">
             <summary>📋 动作清单</summary>
             <div class="tool-body">
@@ -259,15 +281,9 @@
           </details>
         </section>
       </div>
-      <footer class="menu-footer">
-        <div class="menu-summary" id="menu-summary"></div>
-        <div class="menu-actions">
-          <button class="btn btn-primary btn-big" id="btn-start">开始挑战</button>
-        </div>
-      </footer>
     </section>
 
-    <!-- ============ 屏幕 2.2：投屏到电视 ============ -->
+    <!-- ============ 屏幕 2.8：投屏到电视 ============ -->
     <section class="screen" id="screen-cast">
       <header class="topbar">
         <div class="topbar-left">
@@ -307,7 +323,7 @@
           </div>
           <div class="card cast-card">
             <h3>🔗 备选：电视浏览器直开</h3>
-            <p class="lead small">电视自带浏览器直接打开本网址，进菜单选「手机当识别器」扫码配对，也能玩（适合没有投屏功能的电视）。</p>
+            <p class="lead small">电视自带浏览器直接打开本网址，进设置选「手机当识别器」扫码配对，也能玩（适合没有投屏功能的电视）。</p>
             <div class="btn-row">
               <button class="btn btn-ghost" id="btn-cast-back">返回菜单</button>
             </div>
@@ -316,7 +332,7 @@
       </div>
     </section>
 
-    <!-- ============ 屏幕 2.8：我的档案（存档 / 成就 / 打卡 / 装扮商店） ============ -->
+    <!-- ============ 屏幕 2.9：我的档案（存档 / 成就 / 打卡 / 装扮商店） ============ -->
     <section class="screen" id="screen-profile">
       <header class="topbar">
         <div class="topbar-left">

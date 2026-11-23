@@ -37,6 +37,9 @@ let source: InputSource = 'direct';
 let userPickedSource = false;
 /** 跳过体检 = 不接受体检结论，别在背后改用户的选择 */
 let checkSkipped = false;
+/** 设置/体检页的返回目标（从哪进来回哪去） */
+let settingsFrom: string = 'screen-menu';
+const checkFrom = 'screen-settings';
 let difficulty: Difficulty = 'normal';
 let game: Game | null = null;
 let padInput: GamepadInput | null = null;
@@ -242,7 +245,11 @@ function goBack(): number {
   const active = document.querySelector('.screen.active')?.id ?? '';
   if (active === 'screen-check') {
     checkSkipped = true; // 离开体检 = 不接受迟到结论
-    showScreen('screen-menu');
+    showScreen(checkFrom);
+    return 1;
+  }
+  if (active === 'screen-settings') {
+    showScreen(settingsFrom);
     return 1;
   }
   if (active === 'screen-prepare') {
@@ -945,26 +952,43 @@ function renderLevels(): void {
     el.addEventListener('click', () => {
       const id = el.dataset.level ?? '';
       pendingLevel = LEVELS.find((l) => l.id === id) ?? null;
-      renderPrepareHead();
+      renderPrepareHero();
       showScreen('screen-prepare');
       refreshChartLab(); // 节奏工坊画布按真实宽度补绘
     });
   });
 }
 
-/** 开玩准备：所选关卡信息条 */
-function renderPrepareHead(): void {
+/** 开玩准备：关卡横幅（海报视觉延续）；工坊只属于自由练习 */
+function renderPrepareHero(): void {
   $('#prepare-sub').textContent = pendingLevel ? `${pendingLevel.lv} · ${pendingLevel.nameCn}` : '自由练习';
   const rec = profile.levels[pendingLevel?.id ?? 'free'];
   const best = rec?.best
-    ? `<div class="ph-best">⭐ ${rec.stars} · 最佳 ${rec.best.toLocaleString()}${rec.cleared ? ' · 已通关' : ''}</div>`
-    : '<div class="ph-best new">首次挑战 · 加油！</div>';
-  const head = pendingLevel
-    ? `<div class="ph-emoji" style="--lp-accent:${pendingLevel.poster.accent}">${pendingLevel.poster.emoji}</div>
-       <div class="ph-text"><b>${pendingLevel.lv} · ${pendingLevel.nameCn}</b><span>${pendingLevel.nameEn} · ${pendingLevel.poster.sub}</span></div>`
-    : `<div class="ph-emoji" style="--lp-accent:#0071e3">🎛</div>
-       <div class="ph-text"><b>FREE · 自由练习</b><span>工坊谱面 · 你的音乐你的节奏</span></div>`;
-  $('#prepare-head').innerHTML = `${head}${best}`;
+    ? `<div class="phb-best">⭐ ${rec.stars} · 最佳 ${rec.best.toLocaleString()}${rec.cleared ? ' · 已通关' : ''}</div>`
+    : '<div class="phb-best new">首次挑战 · 加油！</div>';
+  const hero = $('#prepare-hero');
+  if (pendingLevel) {
+    hero.style.setProperty('--lp-accent', pendingLevel.poster.accent);
+    hero.innerHTML = `
+      <div class="phb-emoji">${pendingLevel.poster.emoji}</div>
+      <div class="phb-text">
+        <div class="phb-lv">${pendingLevel.lv} · ${pendingLevel.nameEn}</div>
+        <div class="phb-name">${pendingLevel.nameCn}</div>
+        <div class="phb-sub">${pendingLevel.poster.sub}</div>
+      </div>
+      ${best}`;
+  } else {
+    hero.style.setProperty('--lp-accent', '#0071e3');
+    hero.innerHTML = `
+      <div class="phb-emoji">🎛</div>
+      <div class="phb-text">
+        <div class="phb-lv">FREE · FREE PLAY</div>
+        <div class="phb-name">自由练习</div>
+        <div class="phb-sub">工坊谱面 · 你的音乐你的节奏</div>
+      </div>
+      ${best}`;
+  }
+  $('#music-card').hidden = !!pendingLevel; // 音乐工坊只跟自由练习有关
 }
 
 /** 双语过场卡（黑底 + 速度线，到时自动收起） */
@@ -1589,9 +1613,7 @@ function setupMenu(): void {
   // 体检按钮
   $('#btn-enter').addEventListener('click', () => {
     checkSkipped = true; // 离开体检 = 不接受迟到结论
-    void audio.init();
-    showScreen('screen-menu');
-    refreshChartLab(); // 菜单可见后按真实宽度重绘画布
+    showScreen(checkFrom);
   });
   $('#btn-recheck').addEventListener('click', () => {
     checkSkipped = false; // 重新体检 = 愿意听结论
@@ -1601,6 +1623,14 @@ function setupMenu(): void {
     checkSkipped = false; // 回体检重测 = 重新听体检结论
     showScreen('screen-check');
     void runDeviceCheck();
+  });
+  $('#btn-settings').addEventListener('click', () => {
+    settingsFrom = 'screen-menu';
+    showScreen('screen-settings');
+  });
+  $('#btn-settings-jump').addEventListener('click', () => {
+    settingsFrom = 'screen-prepare';
+    showScreen('screen-settings');
   });
 
   // 菜单卡片
@@ -1757,7 +1787,7 @@ function setupMenu(): void {
   $('#btn-start').addEventListener('click', () => {
     if (source === 'phone' && pairing && !pairing.isConnected) {
       const el = $('#pair-status');
-      el.textContent = '手机还没连上，请先扫码（或改用本机摄像头）';
+      el.textContent = '手机还没连上：点 ⚙️ 设置 扫码配对（或改用本机摄像头）';
       el.classList.remove('connected');
       return;
     }
