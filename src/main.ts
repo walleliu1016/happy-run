@@ -1066,6 +1066,77 @@ function escapeHtml(s: string): string {
   });
 }
 
+// ---------- 对战关卡选择器（自绘下拉，替代原生 select） ----------
+// APK/WebView 兜底横排时窗口仍是竖屏，原生 <select> 弹窗由系统竖向绘制、
+// 不跟 CSS 旋转走，故改为自绘弹层，随 #app 一起转。
+let pkLevelPick = '';
+function pkRenderLevelPick(): void {
+  const btn = $<HTMLButtonElement>('#pk-level');
+  const menu = $('#pk-level-menu');
+  if (!btn || !menu) return;
+  const def = LEVELS.find((l) => l.id === pkLevelPick) ?? LEVELS[0] ?? null;
+  if (def) pkLevelPick = def.id;
+  btn.innerHTML = `${def ? `${def.lv} ${escapeHtml(def.nameCn)}` : '选择关卡'}<span class="pk-caret">▾</span>`;
+  menu.innerHTML = LEVELS.map((l) => `<li><button type="button" class="pk-select-opt${l.id === pkLevelPick ? ' on' : ''}" role="option" aria-selected="${l.id === pkLevelPick}" data-level="${escapeHtml(l.id)}">${l.lv} ${escapeHtml(l.nameCn)}</button></li>`).join('');
+  menu.querySelectorAll<HTMLButtonElement>('.pk-select-opt').forEach((el) => {
+    el.addEventListener('click', () => {
+      pkLevelPick = el.dataset.level ?? pkLevelPick;
+      pkRenderLevelPick();
+      pkOpenLevelMenu(false);
+    });
+  });
+}
+function pkOpenLevelMenu(open: boolean): void {
+  const menu = $('#pk-level-menu');
+  const btn = $<HTMLButtonElement>('#pk-level');
+  const app = $('#app');
+  if (!menu || !btn) return;
+  menu.classList.remove('drop-up');
+  menu.style.maxHeight = '';
+  menu.hidden = !open;
+  btn.setAttribute('aria-expanded', String(open));
+  if (!open || !app) return;
+  // 贴合可见边界：放不下就向上弹并收窄高度。
+  // 用屏幕矩形距离判断（旋转是等距变换，方向自动适配兜底横排/真横屏两种形态）。
+  // 边界取「最近的裁剪祖先」（滚动容器/overflow hidden），不是 #app——
+  // getBoundingClientRect 不反映被祖先裁剪，按 #app 算会让菜单顶进滚动视口外被切掉。
+  const clipper = ((): HTMLElement => {
+    for (let n: HTMLElement | null = btn.parentElement; n && n !== document.body; n = n.parentElement) {
+      const cs = getComputedStyle(n);
+      if (cs.overflow !== 'visible' || cs.overflowY !== 'visible' || cs.overflowX !== 'visible') return n;
+    }
+    return app;
+  })();
+  const ab = clipper.getBoundingClientRect();
+  const bb = btn.getBoundingClientRect();
+  const mb = menu.getBoundingClientRect();
+  const dx = (mb.left + mb.right - bb.left - bb.right) / 2;
+  const dy = (mb.top + mb.bottom - bb.top - bb.bottom) / 2;
+  const roomToward = (dirX: number, dirY: number): number => {
+    if (Math.abs(dirX) >= Math.abs(dirY)) {
+      return dirX < 0 ? bb.left - ab.left : ab.right - bb.right;
+    }
+    return dirY < 0 ? bb.top - ab.top : ab.bottom - bb.bottom;
+  };
+  const downX = Math.sign(dx);
+  const downY = Math.sign(dy);
+  const roomBelow = roomToward(downX, downY);
+  const roomAbove = roomToward(-downX, -downY);
+  const wantBelow = roomBelow >= roomAbove;
+  const space = Math.max((wantBelow ? roomBelow : roomAbove) - 12, 80);
+  if (!wantBelow) menu.classList.add('drop-up');
+  // maxHeight 是上限（border-box）：内容更矮时盒子自然收缩，不会撑满
+  menu.style.maxHeight = `${space}px`;
+  // 选中项滚入可视区（只动菜单自身滚动，不惊动外层滚动容器）
+  const on = menu.querySelector<HTMLElement>('.pk-select-opt.on');
+  if (on) {
+    if (on.offsetTop < menu.scrollTop) menu.scrollTop = on.offsetTop - 6;
+    else if (on.offsetTop + on.offsetHeight > menu.scrollTop + menu.clientHeight) {
+      menu.scrollTop = on.offsetTop + on.offsetHeight - menu.clientHeight + 6;
+    }
+  }
+}
+
 let roomBannerTimer = 0;
 function startRoomBannerPoll(): void {
   if (roomBannerTimer) return;
@@ -1147,11 +1218,8 @@ function pkEnter(): void {
   }
   pkLevelDef = pendingLevel ?? currentLevel;
   // 大厅：关卡选择器（首页入口进来时默认第一关，可改）+ 公开房间列表
-  const sel = $<HTMLSelectElement>('#pk-level');
-  if (!sel.options.length) {
-    sel.innerHTML = LEVELS.map((l) => `<option value="${l.id}">${l.lv} ${escapeHtml(l.nameCn)}</option>`).join('');
-  }
-  sel.value = pkLevelDef?.id ?? LEVELS[0]?.id ?? '';
+  pkLevelPick = pkLevelDef?.id ?? '';
+  pkRenderLevelPick();
   void pkRefreshRoomList();
   startPkListPoll();
   void pkOnline().then((n) => {
@@ -1171,7 +1239,7 @@ function pkEnter(): void {
 async function pkCreateFlow(): Promise<void> {
   const seq = ++pkSeq;
   const name = pkSaveName();
-  const levelId = $<HTMLSelectElement>('#pk-level').value || pkLevelDef?.id || '';
+  const levelId = pkLevelPick || pkLevelDef?.id || '';
   const def = LEVELS.find((l) => l.id === levelId) ?? null;
   if (!def) {
     showToast('先选一个对战关卡');
@@ -2092,6 +2160,19 @@ function setupMenu(): void {
     }
   });
   $<HTMLButtonElement>('#btn-pk-refresh').addEventListener('click', () => void pkRefreshRoomList());
+  // 自绘关卡下拉：点按钮开关、点外面/按 Esc 收起
+  $<HTMLButtonElement>('#pk-level').addEventListener('click', () => {
+    const menu = $('#pk-level-menu');
+    pkOpenLevelMenu(!!menu?.hidden);
+  });
+  document.addEventListener('click', (e) => {
+    if (e.target instanceof Element && !e.target.closest('.pk-level-picker')) {
+      pkOpenLevelMenu(false);
+    }
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') pkOpenLevelMenu(false);
+  });
   $<HTMLButtonElement>('#btn-pk-join').addEventListener('click', () => {
     const code = $<HTMLInputElement>('#pk-code').value.trim();
     if (!code) {

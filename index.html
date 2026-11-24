@@ -95,7 +95,11 @@
           <label class="opt-label" for="pk-name">我的昵称</label>
           <input id="pk-name" class="pk-name-input" maxlength="12" placeholder="输入昵称" autocomplete="off">
           <label class="opt-label" for="pk-level">对战关卡（同图对决）</label>
-          <select id="pk-level" class="pk-name-input pk-select"></select>
+          <div class="pk-level-picker">
+            <button type="button" id="pk-level" class="pk-name-input pk-select"
+              aria-haspopup="listbox" aria-expanded="false">选择关卡<span class="pk-caret">▾</span></button>
+            <ul class="pk-select-menu" id="pk-level-menu" role="listbox" hidden></ul>
+          </div>
           <label class="pk-public-row"><input type="checkbox" id="pk-public" checked> 公开到大厅，让大家发现并加入</label>
           <div class="btn-row center">
             <button class="btn btn-primary" id="btn-pk-create">创建房间 ⚡</button>
