@@ -1511,3 +1511,166 @@ body.force-landscape #app {
   background: #eee8fd; color: var(--purple);
 }
 .pk-rooms-empty { color: var(--ink-2); text-align: center; padding: 14px 0; font-size: 14px; }
+
+/* ======================================================================
+   P1 动效排版 + 结算仪式（追加在末尾以覆盖前文同优先级规则）
+   数字弹跳 / 按钮光泽 / 卡片入场 / 过场扫光 / 评级称号 / 破纪录火焰字
+   ====================================================================== */
+
+/* --- 数字动效：分数弹跳 + 倒计时跳变 --- */
+.hud-score.pop { animation: score-pop 0.22s ease; }
+@keyframes score-pop {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.07); }
+  100% { transform: scale(1); }
+}
+.countdown.tick { animation: cd-pop 0.34s cubic-bezier(0.2, 1.35, 0.4, 1); }
+@keyframes cd-pop {
+  0% { transform: scale(1.42); opacity: 0; }
+  55% { transform: scale(0.96); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+/* --- 按钮微交互：按压加深 + 光泽扫过 --- */
+.btn { position: relative; overflow: hidden; }
+.btn::after {
+  content: ''; position: absolute; top: -20%; bottom: -20%; width: 42%;
+  left: -65%; transform: skewX(-22deg); pointer-events: none;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.42), transparent);
+  transition: left 0.5s ease;
+}
+.btn:hover:not(:disabled)::after { left: 125%; }
+.btn:active:not(:disabled) { transform: scale(0.94); }
+.tv-focus.btn::after { animation: sheen-loop 2.4s linear infinite; }
+@keyframes sheen-loop {
+  0% { left: -65%; }
+  55%, 100% { left: 125%; }
+}
+
+/* --- 卡片动效排版：入场弹入 + hover 抬升（fill 用 backwards，不占住 hover） --- */
+.mode-card { transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.15s ease; }
+.mode-card:hover { transform: translateY(-3px); box-shadow: 0 16px 34px rgba(0, 0, 0, 0.13); }
+.screen.active .mode-card,
+.screen.active .level-poster,
+.screen.active .stat,
+.screen.active .result-card {
+  animation: card-in 0.45s cubic-bezier(0.2, 0.85, 0.3, 1.12) backwards;
+}
+.screen.active .mode-card:nth-child(2),
+.screen.active .level-poster:nth-child(2),
+.screen.active .stat:nth-child(2) { animation-delay: 0.07s; }
+.screen.active .mode-card:nth-child(3),
+.screen.active .level-poster:nth-child(3),
+.screen.active .stat:nth-child(3) { animation-delay: 0.14s; }
+.screen.active .mode-card:nth-child(4),
+.screen.active .level-poster:nth-child(4),
+.screen.active .stat:nth-child(4) { animation-delay: 0.21s; }
+.screen.active .mode-card:nth-child(5),
+.screen.active .level-poster:nth-child(5) { animation-delay: 0.28s; }
+.screen.active .mode-card:nth-child(6),
+.screen.active .level-poster:nth-child(6) { animation-delay: 0.35s; }
+.screen.active .mode-card:nth-child(7),
+.screen.active .level-poster:nth-child(7) { animation-delay: 0.42s; }
+@keyframes card-in {
+  from { opacity: 0; transform: translateY(16px) scale(0.94); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* --- 过场扫光（开跑 / 结算切屏） --- */
+#screen-wipe {
+  position: absolute; inset: 0; z-index: 80; pointer-events: none;
+  overflow: hidden; display: none;
+}
+#screen-wipe.play { display: block; }
+#screen-wipe::before {
+  content: ''; position: absolute; top: -20%; bottom: -20%; left: -45%;
+  width: 38%;
+  background: linear-gradient(90deg, transparent, rgba(123, 47, 247, 0.32) 22%, rgba(34, 225, 255, 0.85) 50%, rgba(255, 214, 10, 0.32) 78%, transparent);
+  transform: skewX(-18deg);
+  animation: wipe-sweep 0.55s cubic-bezier(0.3, 0.7, 0.2, 1) forwards;
+}
+#screen-wipe::after {
+  content: ''; position: absolute; inset: 0; background: #fff; opacity: 0;
+  animation: wipe-flash 0.55s ease-out forwards;
+}
+@keyframes wipe-sweep {
+  from { left: -45%; }
+  to { left: 125%; }
+}
+@keyframes wipe-flash {
+  0% { opacity: 0; }
+  18% { opacity: 0.15; }
+  100% { opacity: 0; }
+}
+
+/* --- 评级称号（结算仪式：按星级授予头衔，微光循环扫过） --- */
+.rs-rank {
+  position: relative; overflow: hidden;
+  display: inline-block; margin: 10px 0 2px;
+  padding: 9px 22px; border-radius: 999px;
+  font-size: clamp(15px, 1.5vw, 23px); font-weight: 800; letter-spacing: 3px;
+  color: #fff;
+  background: linear-gradient(120deg, #7b2ff7, #2f80ff);
+  box-shadow: 0 10px 28px rgba(90, 60, 220, 0.4);
+  animation: badge-pop 0.55s cubic-bezier(0.2, 0.9, 0.3, 1.4) both;
+}
+.rs-rank[data-t='2'] { background: linear-gradient(120deg, #34c77b, #30d158); box-shadow: 0 10px 26px rgba(40, 190, 110, 0.4); }
+.rs-rank[data-t='3'] { background: linear-gradient(120deg, #32ade6, #0a84ff); box-shadow: 0 10px 26px rgba(20, 140, 255, 0.4); }
+.rs-rank[data-t='4'] { background: linear-gradient(120deg, #bf5af2, #5e5ce6); box-shadow: 0 10px 28px rgba(160, 80, 230, 0.45); }
+.rs-rank[data-t='5'] {
+  background: linear-gradient(120deg, #ff9f0a, #ff375f 58%, #bf5af2);
+  box-shadow: 0 12px 36px rgba(255, 120, 40, 0.5);
+}
+.rs-rank::after {
+  content: ''; position: absolute; inset: 0;
+  background: linear-gradient(110deg, transparent 32%, rgba(255, 255, 255, 0.45) 50%, transparent 68%);
+  transform: translateX(-110%);
+  animation: rank-shimmer 2.6s ease-in-out infinite;
+}
+@keyframes rank-shimmer {
+  0%, 55% { transform: translateX(-110%); }
+  90%, 100% { transform: translateX(110%); }
+}
+
+/* --- 破纪录火焰字（外圈暗底药丸 + 火苗渐变字；background-image 免重置 clip） --- */
+.rs-record {
+  background: rgba(28, 10, 4, 0.78);
+  border: 1.5px solid rgba(255, 130, 40, 0.7);
+  box-shadow: 0 0 26px rgba(255, 110, 30, 0.45), inset 0 0 18px rgba(255, 120, 30, 0.22);
+}
+.rs-record b {
+  background-image: linear-gradient(180deg, #fff7d6, #ffd23e 38%, #ff8a1e 66%, #ff3b30 95%);
+  background-size: 100% 240%;
+  background-position: 50% 6%;
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+  animation: flame-lick 0.85s linear infinite alternate;
+}
+@keyframes flame-lick {
+  from { background-position: 50% 6%; filter: drop-shadow(0 0 8px rgba(255, 150, 40, 0.75)); }
+  to { background-position: 50% 62%; filter: drop-shadow(0 0 20px rgba(255, 90, 30, 0.95)); }
+}
+
+/* --- 五星全满爆光（最后一颗星落地后闪一道） --- */
+.result-stars.full { position: relative; }
+.result-stars.full::after {
+  content: ''; position: absolute; left: 50%; top: 50%; width: 150%; height: 240%;
+  transform: translate(-50%, -50%);
+  background: radial-gradient(closest-side, rgba(255, 196, 70, 0.55), transparent 72%);
+  pointer-events: none;
+  animation: star-flash 1s ease-out 0.62s both;
+}
+@keyframes star-flash {
+  from { opacity: 0; transform: translate(-50%, -50%) scale(0.5); }
+  30% { opacity: 1; }
+  to { opacity: 0; transform: translate(-50%, -50%) scale(1.55); }
+}
+
+/* --- 减弱动态偏好：全部动画退场 --- */
+@media (prefers-reduced-motion: reduce) {
+  #screen-wipe { display: none !important; }
+  .hud-score.pop, .countdown.tick, .screen.active .mode-card,
+  .screen.active .level-poster, .screen.active .stat, .screen.active .result-card,
+  .rs-rank, .rs-rank::after, .rs-record b, .result-stars.full::after,
+  .tv-focus.btn::after { animation: none; }
+  .btn::after { display: none; }
+}

@@ -222,6 +222,17 @@ function showScreen(id: string): void {
   }
   if (id !== 'screen-pk') stopPkListPoll();
   syncForceLandscape(); // 打开即横排：任何屏都保持横排，不再按屏重置
+  // P1 过场：开跑 / 结算切屏时扫一道霓虹光
+  if (id === 'screen-game' || id === 'screen-result') playWipe();
+}
+
+/** P1 过场扫光（运动图形转场：斜切光带扫过 + 微闪白） */
+function playWipe(): void {
+  const w = $('#screen-wipe');
+  w.classList.remove('play');
+  void w.offsetWidth;
+  w.classList.add('play');
+  window.setTimeout(() => w.classList.remove('play'), 700);
 }
 
 // ---------- 打开即横排（全 App：菜单/准备/设置/对局一视同仁） ----------
@@ -1515,7 +1526,12 @@ async function startGame(chartOverride?: Chart, opts?: GameOpts): Promise<void> 
     },
     onHud: (s: GameStats) => updateHud(s),
     onCountdown: (text) => {
-      $('#countdown').textContent = text;
+      const cd = $('#countdown');
+      cd.textContent = text;
+      // P1 数字动效：每次换数字重新弹一下
+      cd.classList.remove('tick');
+      void cd.offsetWidth;
+      cd.classList.add('tick');
     },
     onEnd: (s: GameStats) => void showResult(s),
     onTimeline: (items) => renderTimeline(items),
@@ -1860,6 +1876,8 @@ function pulseTimelineLine(): void {
 }
 
 // ---------- 教练人设反馈（夸奖/鼓励气泡） ----------
+/** P1 评级称号（结算仪式：按星级授予头衔） */
+const RANK_TITLES = ['元气新手', '节奏学徒', '节拍猎手', '律动大师', '节奏之神'];
 const COACH_LINES: Record<JudgeQuality, string[]> = {
   perfect: ['就是这样！✨', '完美！继续保持！', '太棒了！👏', '节奏感真好！'],
   great: ['很棒！', '漂亮！👏', '就差一点点就完美！'],
@@ -1881,6 +1899,8 @@ function coachReact(r: JudgeResult): void {
 
 let shownScore = 0;
 let shownCombo = 0;
+let lastPoppedScore = -1;
+let lastScorePopAt = 0;
 
 function updateHud(s: GameStats): void {
   const comboEl = $('#hud-combo');
@@ -1902,6 +1922,15 @@ function updateHud(s: GameStats): void {
   shownScore += (s.score - shownScore) * 0.16;
   if (Math.abs(s.score - shownScore) < 1) shownScore = s.score;
   $('#hud-score').textContent = String(Math.round(shownScore));
+  // P1 数字动效：有新增分就轻弹一下（180ms 节流防连续抖碎）
+  if (s.score > 0 && s.score !== lastPoppedScore && performance.now() - lastScorePopAt > 180) {
+    lastPoppedScore = s.score;
+    lastScorePopAt = performance.now();
+    const se = $('#hud-score');
+    se.classList.remove('pop');
+    void se.offsetWidth;
+    se.classList.add('pop');
+  }
   $('#hud-kcal').textContent = `${s.kcal.toFixed(0)} kcal`;
   // 血量（1:1 ❤100，miss 扣 4）
   $('#hud-hearts').innerHTML = `❤ <b>${Math.max(0, 100 - s.misses * 4)}</b>`;
@@ -1955,6 +1984,10 @@ async function showResult(s: GameStats): Promise<void> {
   const gradeEl = $('#rs-grade');
   gradeEl.textContent = grade;
   gradeEl.dataset.g = grade;
+  // P1 评级称号（结算仪式：按星级授予头衔）
+  const rankEl = $('#rs-rank');
+  rankEl.textContent = RANK_TITLES[stars - 1] ?? RANK_TITLES[0];
+  rankEl.dataset.t = String(stars);
   // 分数滚动上跳（缓出）
   const scoreEl = $('#rs-score');
   scoreEl.textContent = '0';
@@ -1968,9 +2001,15 @@ async function showResult(s: GameStats): Promise<void> {
   $('#rs-combo').textContent = String(s.maxCombo);
   $('#rs-acc').textContent = `${accPct}%`;
   $('#rs-kcal').textContent = s.kcal.toFixed(0);
-  // 星级逐个弹入
-  $('#rs-stars').innerHTML = Array.from({ length: 5 }, (_, i) =>
+  // 星级逐个弹入（五星全满时叠一道爆光）
+  const starsEl = $('#rs-stars');
+  starsEl.classList.remove('full');
+  starsEl.innerHTML = Array.from({ length: 5 }, (_, i) =>
     `<i class="${i < stars ? 'on' : ''}" style="animation-delay:${i * 130}ms">★</i>`).join('');
+  if (stars >= 5) {
+    void starsEl.offsetWidth;
+    starsEl.classList.add('full');
+  }
   // 判定分布条（先归零，双 rAF 后铺开让 transition 生效）
   const total = Math.max(1, s.total);
   const counts: number[] = [s.perfects, s.greats, s.goods, s.misses];
