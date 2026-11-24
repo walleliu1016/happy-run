@@ -116,3 +116,46 @@ export async function pkLeave(m: { playerId: string; roomCode: string } | null):
   if (!m?.playerId) return;
   try { await api('leave', { playerId: m.playerId, roomCode: m.roomCode }); } catch { /* 忽略 */ }
 }
+
+// ---------- 全服排行榜（/api/lb/*） ----------
+export interface LbEntry {
+  rank: number;
+  name: string;
+  score: number;
+  combo: number;
+  grade: string;
+  ts: number;
+}
+
+export interface LbBoard {
+  level: string;
+  top: LbEntry[];
+  total: number;
+}
+
+export interface LbSubmitResult extends LbBoard {
+  /** 本次成绩名次（0 = 未进 top50） */
+  rank: number;
+  improved: boolean;
+}
+
+async function lbApi(path: string, body?: unknown): Promise<any> {
+  const res = await fetch(`/api/lb/${path}`, body
+    ? { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }
+    : undefined);
+  if (!res.ok) throw new Error(`lb api ${path} ${res.status}`);
+  return res.json();
+}
+
+/** 取榜（每关 top 20） */
+export async function lbBoard(level: string): Promise<LbBoard> {
+  try { return await lbApi(`board?level=${encodeURIComponent(level)}`); }
+  catch { return { level, top: [], total: 0 }; }
+}
+
+/** 交卷上榜（每关保留 top 50） */
+export async function lbSubmit(
+  level: string, name: string, score: number, combo: number, grade: string,
+): Promise<LbSubmitResult> {
+  return lbApi('submit', { level, name, score, combo, grade });
+}

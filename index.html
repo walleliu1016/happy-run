@@ -48,6 +48,7 @@
           <div class="brand"><span class="brand-dot"></span>WarmingUp 律动跑酷</div>
         </div>
         <div class="topbar-right">
+          <button class="rank-chip" id="rank-chip" title="段位：累计实力，不受星星消费影响">🥉 青铜·起步</button>
           <button class="star-chip" id="star-chip" title="星星：每局都赚，用来解锁装扮">⭐ <b id="star-count">0</b></button>
           <button class="btn btn-ghost btn-small" id="btn-settings">⚙️ 设置</button>
           <button class="btn btn-ghost btn-small" id="btn-profile">我的档案</button>
@@ -72,6 +73,14 @@
             <span id="room-banner-sub">看看现在有哪些房间可以加入</span>
           </div>
           <div class="rb-arrow">›</div>
+        </div>
+        <div class="daily-banner" id="daily-banner" role="button" tabindex="0">
+          <div class="db-icon">🗓</div>
+          <div class="db-text">
+            <b id="daily-title">今日挑战</b>
+            <span id="daily-sub">每天一关固定谱面，全服同题</span>
+          </div>
+          <div class="db-badge" id="daily-badge">+3 ⭐</div>
         </div>
         <h2 class="h2 levels-title">CHOOSE YOUR CHALLENGE <span class="levels-title-cn">选择你的挑战</span></h2>
         <div class="levels-grid" id="levels-grid"></div>
@@ -429,6 +438,10 @@
       </header>
       <div class="profile-wrap">
         <div class="profile-grid">
+          <div class="card pf-card pf-rank-card">
+            <h3>🎯 我的段位</h3>
+            <div class="pf-rank" id="pf-rank"></div>
+          </div>
           <div class="card pf-card">
             <h3>📊 生涯统计</h3>
             <div class="pf-stats" id="pf-stats"></div>
@@ -446,6 +459,15 @@
             <h3>👗 装扮商店</h3>
             <p class="tip">玩局赚 ⭐，解锁新背景和新领操员。</p>
             <div class="shop-grid" id="pf-shop"></div>
+          </div>
+          <div class="card pf-card pf-lb-card">
+            <h3>🌍 全服排行榜</h3>
+            <div class="lb-chips" id="lb-chips"></div>
+            <div class="lb-name-row">
+              <input id="lb-name" class="pk-name-input" maxlength="12" placeholder="上榜昵称（默认匿名玩家）" autocomplete="off">
+              <button class="btn btn-ghost btn-small" id="lb-name-save">保存</button>
+            </div>
+            <div class="lb-list" id="lb-list"></div>
           </div>
         </div>
       </div>
@@ -540,6 +562,7 @@
             <div class="rs-earn" id="rs-earn"></div>
             <div class="rs-ach" id="rs-ach"></div>
             <div class="rs-ghost" id="rs-ghost" hidden></div>
+            <div class="rs-lb" id="rs-lb" hidden></div>
           </div>
           <div class="btn-row center">
             <button class="btn btn-primary" id="btn-next-level" hidden>下一关 →</button>

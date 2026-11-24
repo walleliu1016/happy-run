@@ -2,6 +2,25 @@
 // 竞技模式 = 房间邀请制：创建房间得房码/邀请链接（二维码扫码直达），对方加入后同谱面同时开跑，
 // 界面分屏各占一半舞台，1 秒轮询互报实时进度/比分。数据在内存（对局短时，重启即清）。
 import { randomUUID } from 'node:crypto';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+
+// ---------- 全服排行榜（/api/lb/*，文件持久化，每关 top 50） ----------
+const LB_FILE = fileURLToPath(new URL('./lb-data.json', import.meta.url));
+let lb = null; // { [level]: [{name, score, combo, grade, ts}] }
+function lbLoad() {
+  if (lb) return lb;
+  try { lb = existsSync(LB_FILE) ? JSON.parse(readFileSync(LB_FILE, 'utf8')) : {}; }
+  catch { lb = {}; }
+  return lb;
+}
+function lbSave() {
+  try { writeFileSync(LB_FILE, JSON.stringify(lb)); } catch { /* 只读沙盒退化为内存态 */ }
+}
+function lbBoardView(level) {
+  const top = (lbLoad()[level] || []).slice(0, 20).map((e, i) => ({ rank: i + 1, ...e }));
+  return { level, top, total: (lbLoad()[level] || []).length };
+}
 
 // rooms: Map<roomCode, {code, level, difficulty, seed, state, startAt, createdAt, players:[p1,p2]}>
 // player: {id, name, score, progress, t, combo, done, result, rematch, resultAt, lastSeen}
@@ -78,10 +97,10 @@ function readBody(req) {
   });
 }
 
-/** 处理 /api/pk/* 请求。返回 true = 已处理并结束响应；false = 非 PK 路径（调用方继续） */
+/** 处理 /api/pk/* 与 /api/lb/* 请求。返回 true = 已处理并结束响应；false = 非本模块路径（调用方继续） */
 export async function handlePkApi(req, res) {
   const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
-  if (!url.pathname.startsWith('/api/pk/')) return false;
+  if (!url.pathname.startsWith('/api/pk/') && !url.pathname.startsWith('/api/lb/')) return false;
   const send = (code, obj) => {
     res.writeHead(code, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' });
     res.end(JSON.stringify(obj));
@@ -233,6 +252,33 @@ export async function handlePkApi(req, res) {
         joinable: joinable.length,
         playing: playing.length,
       });
+      return true;
+    }
+
+    // 全服排行榜：取榜（每关 top 20）
+    if (url.pathname === '/api/lb/board' && req.method === 'GET') {
+      const level = String(url.searchParams.get('level') || 'free').slice(0, 40);
+      send(200, lbBoardView(level));
+      return true;
+    }
+
+    // 全服排行榜：交卷上榜（名字消毒 + 分数限幅，每关保留 top 50）
+    if (url.pathname === '/api/lb/submit' && req.method === 'POST') {
+      const body = await readBody(req);
+      const level = String(body.level || 'free').slice(0, 40);
+      const name = String(body.name || '').replace(/[<>"'`&]/g, '').trim().slice(0, 12) || '匿名玩家';
+      const score = Math.max(0, Math.min(9999999, Math.round(Number(body.score) || 0)));
+      const combo = Math.max(0, Math.min(9999, Math.round(Number(body.combo) || 0)));
+      const grade = ['S', 'A', 'B', 'C', 'D'].includes(String(body.grade)) ? String(body.grade) : 'B';
+      const data = lbLoad();
+      const arr = data[level] || (data[level] = []);
+      const entry = { name, score, combo, grade, ts: Date.now() };
+      arr.push(entry);
+      arr.sort((a, b) => b.score - a.score || b.combo - a.combo);
+      data[level] = arr.slice(0, 50);
+      lbSave();
+      const rank = data[level].indexOf(entry) + 1; // 0 = 被挤出 top50
+      send(200, { rank, improved: rank > 0 && rank <= 20, ...lbBoardView(level) });
       return true;
     }
 

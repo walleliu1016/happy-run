@@ -1674,3 +1674,129 @@ body.force-landscape #app {
   .tv-focus.btn::after { animation: none; }
   .btn::after { display: none; }
 }
+
+/* ======================================================================
+   P2 留存结构：段位徽章 / 每日挑战横幅 / 段位卡 / 全服排行榜
+   ====================================================================== */
+
+/* --- 顶栏段位徽章（六档配色，data-t = 档位 cls） --- */
+.rank-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  border: none; cursor: pointer; font-family: var(--font);
+  font-size: clamp(12px, 1.05vw, 16px); font-weight: 700;
+  padding: 8px 16px; border-radius: 999px;
+  color: #7a5b28; background: #f0e2c4;
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+.rank-chip:hover, .rank-chip:focus-visible {
+  transform: translateY(-2px); box-shadow: 0 8px 20px rgba(122, 91, 40, 0.25);
+}
+.rank-chip[data-t='silver'] { color: #4a5568; background: #dfe4ec; }
+.rank-chip[data-t='gold'] { color: #8a6100; background: #ffe6a8; }
+.rank-chip[data-t='plat'] { color: #0a5dc2; background: #cfe4ff; }
+.rank-chip[data-t='diamond'] { color: #6a2fd6; background: #e4d6ff; }
+.rank-chip[data-t='master'] {
+  color: #fff;
+  background-image: linear-gradient(120deg, #ff9f0a, #ff375f 55%, #bf5af2);
+  box-shadow: 0 8px 22px rgba(255, 110, 60, 0.4);
+}
+
+/* --- 每日挑战横幅（绿系渐变，区别于房间横幅的紫；点击开跑） --- */
+.menu-wrap > .daily-banner { grid-column: 1 / -1; }
+.daily-banner {
+  display: flex; align-items: center; gap: clamp(12px, 1.4vw, 20px);
+  width: 100%; text-align: left; cursor: pointer;
+  padding: clamp(12px, 1.4vw, 20px) clamp(16px, 1.8vw, 28px);
+  border-radius: var(--radius); box-shadow: var(--shadow);
+  background-image: linear-gradient(120deg, #10261a 0%, #1f7a45 55%, #10261a 100%);
+  color: #fff;
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+.daily-banner:hover, .daily-banner:focus-visible {
+  transform: translateY(-2px); box-shadow: 0 12px 32px rgba(24, 100, 60, 0.35);
+}
+.daily-banner .db-icon { font-size: clamp(28px, 2.8vw, 44px); flex: none; }
+.daily-banner .db-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.daily-banner .db-text b { font-size: clamp(16px, 1.6vw, 22px); letter-spacing: 0.02em; }
+.daily-banner .db-text span {
+  font-size: clamp(12px, 1.1vw, 15px); opacity: 0.82; font-weight: 500;
+  overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+}
+.db-badge {
+  flex: none; font-size: clamp(13px, 1.2vw, 18px); font-weight: 800;
+  padding: 8px 16px; border-radius: 999px;
+  background: rgba(255, 255, 255, 0.18); color: #ffe27a;
+}
+.db-badge.done { background: rgba(255, 255, 255, 0.14); color: rgba(255, 255, 255, 0.72); }
+
+/* --- 档案段位卡（段位大字 + 段位分进度） --- */
+.rank-big {
+  display: inline-flex; align-items: center; gap: 10px;
+  font-size: clamp(21px, 2.1vw, 32px); font-weight: 800;
+  color: #7a5b28; letter-spacing: 0.01em;
+}
+.rank-big .rank-icon { font-size: 1.35em; }
+.rank-big[data-t='silver'] { color: #4a5568; }
+.rank-big[data-t='gold'] { color: #b8860b; }
+.rank-big[data-t='plat'] { color: #0a5dc2; }
+.rank-big[data-t='diamond'] { color: #6a2fd6; }
+.rank-big[data-t='master'] b {
+  background-image: linear-gradient(120deg, #ff9f0a, #ff375f 55%, #bf5af2);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.rank-score { margin-top: 8px; font-size: clamp(13px, 1.2vw, 19px); color: var(--ink-2); font-weight: 600; }
+.rank-score b { color: var(--ink); font-size: 1.2em; font-variant-numeric: tabular-nums; }
+.rank-track {
+  height: 10px; border-radius: 999px; overflow: hidden;
+  background: rgba(0, 0, 0, 0.08); margin: 12px 0 10px;
+}
+.rank-track i {
+  display: block; height: 100%; border-radius: 999px;
+  background-image: linear-gradient(90deg, #7b2ff7, #2f80ff);
+  transition: width 0.6s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.rank-note { font-size: clamp(11px, 0.95vw, 14px); color: var(--ink-2); line-height: 1.55; }
+
+/* --- 全服排行榜（关卡 chips + 昵称 + top 20） --- */
+.lb-chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 12px; }
+.lb-name-row { display: flex; gap: 8px; margin-bottom: 12px; }
+.lb-name-row .pk-name-input { flex: 1; min-width: 0; }
+.lb-list { display: flex; flex-direction: column; gap: 6px; }
+.lb-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 12px; border-radius: 12px; background: var(--bg);
+  font-size: clamp(13px, 1.15vw, 17px);
+}
+.lb-row.top3 { background: var(--blue-soft); }
+.lb-rank {
+  flex: none; width: 30px; height: 30px; border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 13px; font-weight: 800; color: var(--ink-2);
+  background: rgba(0, 0, 0, 0.07); font-variant-numeric: tabular-nums;
+}
+.lb-rank.r1 { color: #6b4e00; background-image: linear-gradient(140deg, #ffd76a, #f0a500); }
+.lb-rank.r2 { color: #44506a; background-image: linear-gradient(140deg, #e8ecf2, #b8c2d0); }
+.lb-rank.r3 { color: #7a4a22; background-image: linear-gradient(140deg, #e8b98a, #c9834e); }
+.lb-name {
+  flex: 1; min-width: 0; font-weight: 700;
+  overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+}
+.lb-grade {
+  flex: none; font-size: 12px; font-weight: 800; color: var(--purple);
+  background: rgba(175, 82, 222, 0.12); padding: 3px 10px; border-radius: 999px;
+}
+.lb-score { flex: none; font-weight: 800; font-variant-numeric: tabular-nums; }
+.lb-total { margin-top: 8px; text-align: center; font-size: 12px; color: var(--ink-2); }
+.lb-loading { text-align: center; color: var(--ink-2); padding: 18px 0; font-size: 14px; }
+
+/* --- 结算上榜行（异步上传成绩后的名次反馈） --- */
+.rs-lb {
+  font-size: clamp(13px, 1.25vw, 19px); font-weight: 700;
+  color: #0a66c2; background: rgba(10, 102, 194, 0.1);
+  border-radius: 14px; padding: 10px 16px; text-align: center;
+}
+.rs-lb b { font-size: 1.15em; font-variant-numeric: tabular-nums; }
+.rs-lb-top {
+  margin-top: 6px; font-size: 0.82em; font-weight: 500; color: var(--ink-2);
+  overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+}

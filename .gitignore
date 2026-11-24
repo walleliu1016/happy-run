@@ -23,5 +23,8 @@ tv-app/local.properties
 # 冒烟测试脚本（本机开发用，含绝对路径）
 shot-*.mjs
 
+# 全服排行榜服务端数据（线上运行时自生成，测试数据不入库）
+lb-data.json
+
 # 系统杂物
 .DS_Store

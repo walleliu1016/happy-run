@@ -13,14 +13,15 @@ import {
 } from './engine/look';
 import { analyzeMusic, type MusicAnalysis } from './engine/music';
 import {
-  achievementsHtml, buyLook, calendarHtml, drawSharePoster, hasLook, loadProfile,
-  LOOK_PRICES, lookPrice, recordGame, type ProfileData,
+  achievementsHtml, buyLook, calendarHtml, dailyChallenge, drawSharePoster, hasLook, loadProfile,
+  LOOK_PRICES, lookPrice, rankProgress, recordGame, todayStr, type ProfileData,
 } from './engine/profile';
 import {
   chartFromGhost, ghostFromRun, ghostScoreAt, ghostShareUrl, parseGhostHash, type GhostData,
 } from './engine/ghost';
 import {
-  pkCreateRoom, pkJoinRoom, pkLeave, pkOnline, pkRematch, pkResult, pkRoomList, pkRoomStatus, pkSync,
+  lbBoard, lbSubmit, pkCreateRoom, pkJoinRoom, pkLeave, pkOnline, pkRematch, pkResult, pkRoomList,
+  pkRoomStatus, pkSync,
   type PkPlayer, type PkResult, type PkRoomList, type PkRoomState,
 } from './pk';
 import { ActionClassifier } from './input/classifier';
@@ -56,6 +57,10 @@ let castCode: string | null = null;
 let mirrorPlay = false;
 /** 当前关卡（null = 自由练习/工坊谱面） */
 let currentLevel: LevelDef | null = null;
+/** 今日挑战进行中（结算时按当日配置发额外奖励，当天仅首局有效） */
+let dailyMode = false;
+/** 全服排行榜当前查看的关卡（'' = 首次渲染时取第一关） */
+let lbLevel = '';
 
 // ---------- P0 档案层 + P1 影子挑战 ----------
 let profile: ProfileData = loadProfile();
@@ -215,6 +220,7 @@ function showScreen(id: string): void {
   $(`#${id}`).classList.add('active');
   if (id === 'screen-menu') {
     renderLevels(); // PB/星星可能更新，海报徽章刷一遍
+    renderDaily(); // 今日挑战：当日配置 + 完成状态
     void refreshRoomBanner(); // 首页房间入口：实时房间数
     startRoomBannerPoll();
   } else {
@@ -289,6 +295,42 @@ function refreshStarCount(): void {
   if (a) a.textContent = t;
   const b = document.querySelector('#star-count-2');
   if (b) b.textContent = t;
+  refreshRankChip();
+}
+
+/** 顶栏段位小徽章（段位分不吃星星，消费不影响） */
+function refreshRankChip(): void {
+  const el = document.querySelector<HTMLElement>('#rank-chip');
+  if (!el) return;
+  const rp = rankProgress(profile);
+  el.textContent = `${rp.tier.icon} ${rp.tier.name}`;
+  el.dataset.t = rp.tier.cls;
+  el.title = `段位分 ${rp.score}${rp.next ? ` · 距 ${rp.next.name} 还差 ${rp.next.min - rp.score}` : ' · 已登顶'}`;
+}
+
+/** 今日挑战横幅（每天一关固定谱面，全服同题） */
+function renderDaily(): void {
+  const d = dailyChallenge(LEVELS.map((l) => l.id));
+  const lv = LEVELS.find((l) => l.id === d.levelId);
+  const done = profile.daily.done && profile.daily.date === todayStr();
+  $('#daily-title').textContent = `今日挑战 · ${lv?.nameCn ?? '未知关卡'}`;
+  $('#daily-sub').textContent = `${diffLabel(d.difficulty)} · 固定谱面全服同题 · ${done ? '今日已完成，明天再来' : '完成 +3 ⭐'}`;
+  const badge = $('#daily-badge');
+  badge.textContent = done ? '已完成 ✓' : '+3 ⭐';
+  badge.classList.toggle('done', done);
+}
+
+/** 今日挑战：固定关卡+难度+谱面种子直接开跑（当天首局 +3 ⭐） */
+function startDaily(): void {
+  const d = dailyChallenge(LEVELS.map((l) => l.id));
+  const lv = LEVELS.find((l) => l.id === d.levelId);
+  if (!lv) return;
+  dailyMode = true;
+  difficulty = d.difficulty;
+  chartSeed = d.seed;
+  selectCard('scene', 'train'); // 挑战计分，不走课堂/ PK 模式
+  pendingLevel = lv;
+  void startLevel(lv);
 }
 
 /** 统一返回：对局→退局；子屏→回菜单；体检→回菜单；菜单→0（壳双按退出） */
@@ -339,9 +381,16 @@ function ensureLookUnlocked(id: string): boolean {
   return false;
 }
 
-/** 我的档案屏：生涯统计 / 打卡日历 / 成就墙 / 装扮商店 */
+/** 我的档案屏：段位 / 生涯统计 / 打卡日历 / 成就墙 / 装扮商店 / 全服排行榜 */
 function renderProfile(): void {
   refreshStarCount();
+  // P2 段位卡（段位分到下一段位的进度）
+  const rp = rankProgress(profile);
+  $('#pf-rank').innerHTML = `
+    <div class="rank-big" data-t="${rp.tier.cls}"><span class="rank-icon">${rp.tier.icon}</span><b>${rp.tier.name}</b></div>
+    <div class="rank-score">段位分 <b>${rp.score}</b>${rp.next ? ` · 距 ${rp.next.name} 还差 ${rp.next.min - rp.score} 分` : ' · 已登顶'}</div>
+    <div class="rank-track"><i style="width:${rp.pct}%"></i></div>
+    <div class="rank-note">段位分 = 关卡星数×2 + 通关×6 + 成就×3 + 最高连击÷25（不受星星消费影响）</div>`;
   const t = profile.totals;
   const stat = (label: string, value: string | number): string =>
     `<div class="pf-stat"><b>${value}</b><span>${label}</span></div>`;
@@ -376,6 +425,43 @@ function renderProfile(): void {
         showToast(`星星不够，还差 ${lookPrice(id) - profile.stars} ⭐`);
       }
     });
+  });
+  // P2 全服排行榜（昵称保存 + 榜单拉取）
+  const nameInput = $<HTMLInputElement>('#lb-name');
+  nameInput.value = localStorage.getItem('wu.lbName') ?? '';
+  $<HTMLButtonElement>('#lb-name-save').onclick = () => {
+    localStorage.setItem('wu.lbName', nameInput.value.trim().slice(0, 12));
+    showToast('上榜昵称已保存');
+  };
+  renderLb();
+}
+
+/** 全服排行榜（每关 top 20，服务端文件持久化） */
+function renderLb(): void {
+  if (!lbLevel) lbLevel = LEVELS[0]?.id ?? 'free';
+  const chips = [...LEVELS.map((l) => ({ id: l.id, label: `${l.lv} ${l.nameCn}` })), { id: 'free', label: 'FREE 自由' }];
+  $('#lb-chips').innerHTML = chips
+    .map((c) => `<button class="style-chip${c.id === lbLevel ? ' selected' : ''}" data-lb="${escapeHtml(c.id)}">${escapeHtml(c.label)}</button>`)
+    .join('');
+  $('#lb-chips').querySelectorAll<HTMLElement>('[data-lb]').forEach((el) => {
+    el.addEventListener('click', () => { lbLevel = el.dataset.lb ?? 'free'; renderLb(); });
+  });
+  const list = $('#lb-list');
+  list.innerHTML = '<div class="lb-loading">榜单加载中…</div>';
+  void lbBoard(lbLevel).then((b) => {
+    if (!b.top.length) {
+      list.innerHTML = '<div class="lb-loading">还没有人上榜——来当第一！</div>';
+      return;
+    }
+    list.innerHTML = b.top.map((e) => `
+      <div class="lb-row${e.rank <= 3 ? ' top3' : ''}">
+        <span class="lb-rank r${Math.min(e.rank, 10)}">${e.rank}</span>
+        <span class="lb-name">${escapeHtml(e.name)}</span>
+        <span class="lb-grade">${escapeHtml(e.grade)}</span>
+        <span class="lb-score">${e.score.toLocaleString()}</span>
+      </div>`).join('') + `<div class="lb-total">共 ${b.total} 人上榜 · 每关保留前 50</div>`;
+  }).catch(() => {
+    list.innerHTML = '<div class="lb-loading">榜单暂不可用</div>';
   });
 }
 
@@ -2039,11 +2125,13 @@ async function showResult(s: GameStats): Promise<void> {
   const rec = recordGame(profile, {
     stats: s, levelKey, levelName, grade, stars,
     durationSec: runElapsedMs / 1000, totalLevels: LEVELS.length,
+    daily: dailyMode,
   });
+  dailyMode = false; // 每日挑战只作用于紧接着的这一局
   refreshStarCount();
   $('#rs-extra').hidden = false;
   $('#rs-record').hidden = !rec.newRecord;
-  $('#rs-earn').innerHTML = `⭐ 本局 +${rec.starsEarned} 星星${rec.firstClear ? ' · 🚩 首通 +5' : ''}${rec.newRecord ? ' · 🔥 破纪录 +1' : ''}`;
+  $('#rs-earn').innerHTML = `⭐ 本局 +${rec.starsEarned} 星星${rec.firstClear ? ' · 🚩 首通 +5' : ''}${rec.newRecord ? ' · 🔥 破纪录 +1' : ''}${rec.dailyBonus ? ` · 🗓 今日挑战 +${rec.dailyBonus}` : ''}${rec.rankUp ? ` · 🎯 晋升 ${rec.rankUp.icon}${rec.rankUp.name}` : ''}`;
   $('#rs-ach').innerHTML = rec.achievements
     .map((a) => `<span class="rs-ach-item">${a.icon} ${a.name}</span>`).join('');
   // 对战结果：线上 PK 优先，其次影子对决
@@ -2098,8 +2186,27 @@ async function showResult(s: GameStats): Promise<void> {
   }
   // 分享/挑战快照
   lastRun = { stats: s, grade, stars, levelName };
-  if (rec.achievements.length) {
-    showToast(`🏆 新成就：${rec.achievements.map((a) => a.name).join('、')}`);
+  // 成就 + 段位晋升合并成一条 toast（showToast 单条覆盖式）
+  const toasts: string[] = [];
+  if (rec.achievements.length) toasts.push(`🏆 新成就：${rec.achievements.map((a) => a.name).join('、')}`);
+  if (rec.rankUp) toasts.push(`🎯 段位晋升：${rec.rankUp.icon} ${rec.rankUp.name}`);
+  if (toasts.length) showToast(toasts.join('　'));
+  // 全服排行榜上榜（课堂模式不计分不上榜；网络失败静默不打扰）
+  const rsLb = $('#rs-lb');
+  if (scene === 'class') {
+    rsLb.hidden = true;
+  } else {
+    lbLevel = levelKey; // 档案榜单默认定位到本局关卡，跑完进档案直接看到自己的名次
+    rsLb.hidden = false;
+    rsLb.textContent = '🌍 成绩上传中…';
+    const lbName = localStorage.getItem('wu.lbName') || '匿名玩家';
+    void lbSubmit(levelKey, lbName, s.score, s.maxCombo, grade).then((r) => {
+      const top3 = r.top.slice(0, 3)
+        .map((e) => `${e.rank}. ${e.name} ${e.score}`).join('　');
+      rsLb.innerHTML = r.rank > 0
+        ? `🌍 全服第 <b>${r.rank}</b> 名 / 共 ${r.total} 人${r.improved ? ' —— 榜上有名！' : ''}${top3 ? `<div class="rs-lb-top">${top3}</div>` : ''}`
+        : `🌍 本局 ${s.score} 分，暂未进前 50（当前 ${r.total} 人上榜）`;
+    }).catch(() => { rsLb.hidden = true; });
   }
   // 下一关按钮（关卡链末尾隐藏）
   const next = currentLevel ? nextLevel(currentLevel.id) : null;
@@ -2307,6 +2414,15 @@ function setupMenu(): void {
     if (k === 'Enter' || k === ' ') {
       e.preventDefault();
       $('#room-banner').click();
+    }
+  });
+  // 首页每日挑战横幅（点击/回车/空格开跑）
+  $('#daily-banner').addEventListener('click', () => startDaily());
+  $('#daily-banner').addEventListener('keydown', (e) => {
+    const k = (e as KeyboardEvent).key;
+    if (k === 'Enter' || k === ' ') {
+      e.preventDefault();
+      startDaily();
     }
   });
   $<HTMLButtonElement>('#btn-pk-refresh').addEventListener('click', () => void pkRefreshRoomList());
