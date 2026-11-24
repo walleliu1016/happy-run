@@ -105,6 +105,7 @@ export async function handlePkApi(req, res) {
         code,
         level: String(body.level || 'circus-run'),
         difficulty: String(body.difficulty || 'normal'),
+        public: body.public !== false, // 公开到大厅（默认公开），私密房仅凭码/链接进
         seed: 0,
         state: 'waiting',
         startAt: 0,
@@ -207,6 +208,31 @@ export async function handlePkApi(req, res) {
       }
       playerRoom.delete(playerId);
       send(200, { ok: true });
+      return true;
+    }
+
+    // 房间大厅：公开房间列表（waiting 可加入排前；playing 仅展示对局中）
+    if (url.pathname === '/api/pk/rooms' && req.method === 'GET') {
+      const all = [...rooms.values()].filter((r) => r.public !== false);
+      const view = (r) => ({
+        code: r.code,
+        level: r.level,
+        difficulty: r.difficulty,
+        host: r.players[0]?.name || '玩家',
+        players: r.players.length,
+        maxPlayers: 2,
+        state: r.state,
+        createdAt: r.createdAt,
+      });
+      const joinable = all.filter((r) => r.state === 'waiting' && r.players.length < 2)
+        .sort((a, b) => b.createdAt - a.createdAt);
+      const playing = all.filter((r) => r.state === 'playing')
+        .sort((a, b) => b.createdAt - a.createdAt);
+      send(200, {
+        rooms: [...joinable, ...playing].slice(0, 30).map(view),
+        joinable: joinable.length,
+        playing: playing.length,
+      });
       return true;
     }
 

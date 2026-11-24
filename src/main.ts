@@ -20,8 +20,8 @@ import {
   chartFromGhost, ghostFromRun, ghostScoreAt, ghostShareUrl, parseGhostHash, type GhostData,
 } from './engine/ghost';
 import {
-  pkCreateRoom, pkJoinRoom, pkLeave, pkOnline, pkRematch, pkResult, pkRoomStatus, pkSync,
-  type PkPlayer, type PkResult, type PkRoomState,
+  pkCreateRoom, pkJoinRoom, pkLeave, pkOnline, pkRematch, pkResult, pkRoomList, pkRoomStatus, pkSync,
+  type PkPlayer, type PkResult, type PkRoomList, type PkRoomState,
 } from './pk';
 import { ActionClassifier } from './input/classifier';
 import { GamepadInput, connectedPadNames } from './input/gamepad';
@@ -213,7 +213,14 @@ const $ = <T extends HTMLElement>(sel: string): T => {
 function showScreen(id: string): void {
   document.querySelectorAll('.screen').forEach((s) => s.classList.remove('active'));
   $(`#${id}`).classList.add('active');
-  if (id === 'screen-menu') renderLevels(); // PB/星星可能更新，海报徽章刷一遍
+  if (id === 'screen-menu') {
+    renderLevels(); // PB/星星可能更新，海报徽章刷一遍
+    void refreshRoomBanner(); // 首页房间入口：实时房间数
+    startRoomBannerPoll();
+  } else {
+    stopRoomBannerPoll();
+  }
+  if (id !== 'screen-pk') stopPkListPoll();
   syncForceLandscape(); // 打开即横排：任何屏都保持横排，不再按屏重置
 }
 
@@ -1046,6 +1053,89 @@ function diffLabel(d: string): string {
   return d === 'easy' ? '轻松' : d === 'hard' ? '挑战' : '标准';
 }
 
+// ---------- 房间大厅：首页入口 + 公开房间列表 ----------
+function escapeHtml(s: string): string {
+  return s.replace(/[&<>"']/g, (c) => {
+    switch (c) {
+      case '&': return '&amp;';
+      case '<': return '&lt;';
+      case '>': return '&gt;';
+      case '"': return '&quot;';
+      default: return '&#39;';
+    }
+  });
+}
+
+let roomBannerTimer = 0;
+function startRoomBannerPoll(): void {
+  if (roomBannerTimer) return;
+  roomBannerTimer = window.setInterval(() => void refreshRoomBanner(), 10000);
+}
+function stopRoomBannerPoll(): void {
+  window.clearInterval(roomBannerTimer);
+  roomBannerTimer = 0;
+}
+
+/** 首页房间入口横幅：实时显示可加入/进行中的房间数 */
+async function refreshRoomBanner(): Promise<void> {
+  const sub = document.querySelector('#room-banner-sub');
+  if (!sub) return;
+  try {
+    const list = await pkRoomList();
+    const bits: string[] = [];
+    if (list.joinable > 0) bits.push(`${list.joinable} 个房间可加入`);
+    if (list.playing > 0) bits.push(`${list.playing} 局对战进行中`);
+    sub.textContent = bits.length ? bits.join(' · ') : '暂无开放房间，点进来创建一个';
+  } catch { /* 网络异常保持原文案 */ }
+}
+
+let pkListTimer = 0;
+function startPkListPoll(): void {
+  stopPkListPoll();
+  pkListTimer = window.setInterval(() => {
+    if (!$('#pk-idle').hidden && document.querySelector('.screen.active')?.id === 'screen-pk') {
+      void pkRefreshRoomList();
+    }
+  }, 5000);
+}
+function stopPkListPoll(): void {
+  window.clearInterval(pkListTimer);
+  pkListTimer = 0;
+}
+
+/** 拉取并渲染公开房间列表（大厅） */
+async function pkRefreshRoomList(): Promise<void> {
+  try {
+    renderPkRoomList(await pkRoomList());
+  } catch { /* 忽略 */ }
+}
+
+function renderPkRoomList(list: PkRoomList): void {
+  const box = $('#pk-room-list');
+  if (!box) return;
+  if (!list.rooms.length) {
+    box.innerHTML = '<p class="lead small pk-rooms-empty">暂时没有公开房间——创建一个，让大家来加入！</p>';
+    return;
+  }
+  box.innerHTML = list.rooms.map((r) => {
+    const lv = LEVELS.find((l) => l.id === r.level);
+    const joinable = r.state === 'waiting' && r.players < r.maxPlayers;
+    return `<div class="pk-room-row">
+      <div class="pk-room-emoji">${lv?.poster.emoji ?? '🎮'}</div>
+      <div class="pk-room-info">
+        <div class="pk-room-title">${escapeHtml(lv?.nameCn ?? r.level)} <span class="pk-room-meta">· ${escapeHtml(r.host)} 的房间</span></div>
+        <div class="pk-room-meta">${escapeHtml(lv?.lv ?? '')} ${diffLabel(r.difficulty)} · ${r.players}/${r.maxPlayers} 人 · 房码 ${escapeHtml(r.code)}</div>
+      </div>
+      ${joinable
+        ? `<button class="btn btn-primary btn-small pk-room-join" data-code="${escapeHtml(r.code)}">加入</button>`
+        : '<span class="pk-room-state playing">对局中</span>'}
+    </div>`;
+  }).join('');
+  box.querySelectorAll<HTMLElement>('.pk-room-join').forEach((el) => {
+    el.addEventListener('click', () => void pkJoinRoomFlow(el.dataset.code ?? ''));
+  });
+}
+
 /** PK 大厅：创建房间邀人 / 输码加入；带 ?pkroom= 的邀请链接自动填码加入 */
 function pkEnter(): void {
   cleanupPk();
@@ -1056,6 +1146,14 @@ function pkEnter(): void {
     input.value = localStorage.getItem('wu.pkname') || `玩家${Math.floor(1000 + Math.random() * 9000)}`;
   }
   pkLevelDef = pendingLevel ?? currentLevel;
+  // 大厅：关卡选择器（首页入口进来时默认第一关，可改）+ 公开房间列表
+  const sel = $<HTMLSelectElement>('#pk-level');
+  if (!sel.options.length) {
+    sel.innerHTML = LEVELS.map((l) => `<option value="${l.id}">${l.lv} ${escapeHtml(l.nameCn)}</option>`).join('');
+  }
+  sel.value = pkLevelDef?.id ?? LEVELS[0]?.id ?? '';
+  void pkRefreshRoomList();
+  startPkListPoll();
   void pkOnline().then((n) => {
     $('#pk-online').textContent = `${n.rooms} 房 · ${n.players} 人在线`;
   }).catch(() => {});
@@ -1073,10 +1171,15 @@ function pkEnter(): void {
 async function pkCreateFlow(): Promise<void> {
   const seq = ++pkSeq;
   const name = pkSaveName();
-  const def = pkLevelDef;
-  if (!def) return;
+  const levelId = $<HTMLSelectElement>('#pk-level').value || pkLevelDef?.id || '';
+  const def = LEVELS.find((l) => l.id === levelId) ?? null;
+  if (!def) {
+    showToast('先选一个对战关卡');
+    return;
+  }
+  const isPublic = $<HTMLInputElement>('#pk-public').checked;
   try {
-    const room = await pkCreateRoom(name, def.id, difficulty);
+    const room = await pkCreateRoom(name, def.id, difficulty, isPublic);
     if (seq !== pkSeq) { void pkLeave(room); return; }
     pkRoom = room;
     $('#pk-room-code').textContent = room.roomCode;
@@ -1976,6 +2079,19 @@ function setupMenu(): void {
     showScreen(pendingLevel ? 'screen-prepare' : 'screen-menu');
   });
   $<HTMLButtonElement>('#btn-pk-create').addEventListener('click', () => void pkCreateFlow());
+  // 首页房间入口 + 大厅列表
+  $('#room-banner').addEventListener('click', () => {
+    pendingLevel = null; // 大厅入口不带关卡，由列表/关卡选择器决定
+    pkEnter();
+  });
+  $('#room-banner').addEventListener('keydown', (e) => {
+    const k = (e as KeyboardEvent).key;
+    if (k === 'Enter' || k === ' ') {
+      e.preventDefault();
+      $('#room-banner').click();
+    }
+  });
+  $<HTMLButtonElement>('#btn-pk-refresh').addEventListener('click', () => void pkRefreshRoomList());
   $<HTMLButtonElement>('#btn-pk-join').addEventListener('click', () => {
     const code = $<HTMLInputElement>('#pk-code').value.trim();
     if (!code) {

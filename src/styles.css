@@ -1378,3 +1378,57 @@ body.force-landscape #app {
   transform-origin: 0 0;
   transform: rotate(90deg) translateY(-100%);
 }
+
+/* ===== 首页房间入口 + 房间大厅列表 ===== */
+.room-banner {
+  display: flex; align-items: center; gap: clamp(12px, 1.4vw, 20px);
+  width: 100%; text-align: left; cursor: pointer;
+  padding: clamp(12px, 1.4vw, 20px) clamp(16px, 1.8vw, 28px);
+  border: none; border-radius: var(--radius); font-family: var(--font);
+  background: linear-gradient(120deg, #14121f 0%, #2d1b5e 55%, #14121f 100%);
+  color: #fff; box-shadow: var(--shadow);
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+.room-banner:hover, .room-banner:focus-visible {
+  transform: translateY(-2px); box-shadow: 0 12px 32px rgba(45, 27, 94, 0.35);
+}
+.menu-wrap > .room-banner { grid-column: 1 / -1; }
+.room-banner .rb-icon { font-size: clamp(28px, 2.8vw, 44px); flex: none; }
+.room-banner .rb-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.room-banner .rb-text b { font-size: clamp(16px, 1.6vw, 22px); letter-spacing: 0.02em; }
+.room-banner .rb-text span {
+  font-size: clamp(12px, 1.1vw, 15px); opacity: 0.82; font-weight: 500;
+  overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+}
+.room-banner .rb-arrow { font-size: clamp(24px, 2.4vw, 36px); opacity: 0.8; flex: none; }
+
+.pk-select { cursor: pointer; }
+.pk-public-row {
+  display: flex; align-items: center; gap: 8px;
+  margin-top: 10px; font-size: 13px; color: var(--ink-2); cursor: pointer;
+}
+.pk-public-row input { width: 16px; height: 16px; accent-color: var(--purple); cursor: pointer; }
+
+.pk-rooms-head {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-top: 22px; padding-top: 16px; border-top: 1px solid rgba(0, 0, 0, 0.08);
+}
+.pk-room-list { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; }
+.pk-room-row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 14px; border-radius: 16px;
+  background: #f5f5f7; border: 1px solid rgba(0, 0, 0, 0.06);
+}
+.pk-room-emoji { font-size: 26px; flex: none; }
+.pk-room-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.pk-room-title { font-weight: 800; font-size: 15px; }
+.pk-room-meta {
+  font-size: 12px; color: var(--ink-2);
+  overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+}
+.pk-room-state.playing {
+  flex: none; font-size: 12px; font-weight: 700;
+  padding: 5px 12px; border-radius: 999px;
+  background: #eee8fd; color: var(--purple);
+}
+.pk-rooms-empty { color: var(--ink-2); text-align: center; padding: 14px 0; font-size: 14px; }

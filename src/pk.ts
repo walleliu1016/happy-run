@@ -30,6 +30,24 @@ export interface PkResult {
   grade: string;
 }
 
+/** 房间大厅列表项（公开房间） */
+export interface PkRoomListItem {
+  code: string;
+  level: string;
+  difficulty: string;
+  host: string;
+  players: number;
+  maxPlayers: number;
+  state: 'waiting' | 'playing' | 'finished';
+  createdAt: number;
+}
+
+export interface PkRoomList {
+  rooms: PkRoomListItem[];
+  joinable: number;
+  playing: number;
+}
+
 async function api(path: string, body?: unknown): Promise<any> {
   const res = await fetch(`/api/pk/${path}`, body
     ? { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }
@@ -46,9 +64,16 @@ export async function pkOnline(): Promise<{ rooms: number; players: number }> {
   try { return await api('online'); } catch { return { rooms: 0, players: 0 }; }
 }
 
-/** 创建房间（房主）：拿房码去邀人 */
-export async function pkCreateRoom(name: string, level: string, difficulty: string): Promise<PkRoomState> {
-  const r = await api('room', { name, level, difficulty });
+/** 房间大厅：公开房间列表（可加入 + 对局中） */
+export async function pkRoomList(): Promise<PkRoomList> {
+  try { return await api('rooms'); } catch { return { rooms: [], joinable: 0, playing: 0 }; }
+}
+
+/** 创建房间（房主）：拿房码去邀人；isPublic=true 公开到大厅 */
+export async function pkCreateRoom(
+  name: string, level: string, difficulty: string, isPublic = true,
+): Promise<PkRoomState> {
+  const r = await api('room', { name, level, difficulty, public: isPublic });
   return toState(r.playerId, r);
 }
 

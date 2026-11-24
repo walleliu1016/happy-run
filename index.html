@@ -65,6 +65,14 @@
             <button class="btn btn-ghost btn-small" id="btn-ghost-dismiss">忽略</button>
           </div>
         </div>
+        <div class="room-banner" id="room-banner" role="button" tabindex="0">
+          <div class="rb-icon">⚡</div>
+          <div class="rb-text">
+            <b>竞技房间大厅</b>
+            <span id="room-banner-sub">看看现在有哪些房间可以加入</span>
+          </div>
+          <div class="rb-arrow">›</div>
+        </div>
         <h2 class="h2 levels-title">CHOOSE YOUR CHALLENGE <span class="levels-title-cn">选择你的挑战</span></h2>
         <div class="levels-grid" id="levels-grid"></div>
       </div>
@@ -86,6 +94,9 @@
           <p class="lead small">创建房间，把二维码或链接发给好友——<br>两人同关同时开跑，界面分屏各占一半舞台，实时比拼！</p>
           <label class="opt-label" for="pk-name">我的昵称</label>
           <input id="pk-name" class="pk-name-input" maxlength="12" placeholder="输入昵称" autocomplete="off">
+          <label class="opt-label" for="pk-level">对战关卡（同图对决）</label>
+          <select id="pk-level" class="pk-name-input pk-select"></select>
+          <label class="pk-public-row"><input type="checkbox" id="pk-public" checked> 公开到大厅，让大家发现并加入</label>
           <div class="btn-row center">
             <button class="btn btn-primary" id="btn-pk-create">创建房间 ⚡</button>
           </div>
@@ -94,6 +105,11 @@
             <button class="btn btn-ghost" id="btn-pk-join">加入房间</button>
           </div>
           <p class="lead small pk-hint">好友发来邀请链接？打开链接会自动填入房间码加入。</p>
+          <div class="pk-rooms-head">
+            <b>公开房间</b>
+            <button class="btn btn-ghost btn-small" id="btn-pk-refresh">↻ 刷新</button>
+          </div>
+          <div class="pk-room-list" id="pk-room-list"></div>
         </div>
         <div class="card pk-card" id="pk-waiting" hidden>
           <h2 id="pk-wait-title">房间已创建</h2>
