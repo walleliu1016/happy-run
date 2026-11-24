@@ -27,7 +27,7 @@ body {
   -webkit-font-smoothing: antialiased;
   -webkit-tap-highlight-color: transparent;
 }
-#app { height: 100vh; height: 100dvh; }
+#app { position: relative; height: 100vh; height: 100dvh; }
 
 /* ===== 屏幕路由 ===== */
 .screen { display: none; height: 100%; overflow: hidden; }
@@ -324,6 +324,62 @@ body {
 @keyframes miss-vig {
   0% { opacity: 1; }
   100% { opacity: 0; }
+}
+/* Perfect 全屏光圈（判定瞬间中心扩散金环，gold 为金砖加强版） */
+.perfect-ring {
+  position: absolute; inset: 0; pointer-events: none; opacity: 0;
+}
+.perfect-ring::before {
+  content: ''; position: absolute; left: 50%; top: 52%;
+  width: 30vmin; height: 30vmin; margin: -15vmin 0 0 -15vmin;
+  border-radius: 50%; border: 3px solid rgba(255, 214, 10, 0.85);
+  box-shadow: 0 0 42px rgba(255, 184, 36, 0.55), inset 0 0 32px rgba(255, 184, 36, 0.35);
+}
+.perfect-ring.show { animation: pring 0.52s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+.perfect-ring.show::before { animation: pring-wave 0.52s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+.perfect-ring.gold::before {
+  border-width: 5px; border-color: rgba(255, 235, 170, 0.95);
+  box-shadow: 0 0 70px rgba(255, 200, 60, 0.8), inset 0 0 46px rgba(255, 200, 60, 0.5);
+}
+@keyframes pring {
+  0% { opacity: 1; }
+  100% { opacity: 0; }
+}
+@keyframes pring-wave {
+  0% { transform: scale(0.35); opacity: 1; }
+  100% { transform: scale(2.1); opacity: 0; }
+}
+/* 里程碑分级横幅（hot=50+/legend=100+）——用 background-image 免重置 background-clip:text */
+.combo-banner.hot b {
+  background-image: linear-gradient(180deg, #fff6d8, #ff9f0a 55%, #ff6b00);
+  filter: drop-shadow(0 0 36px rgba(255, 159, 10, 0.8)) drop-shadow(0 4px 0 rgba(0, 0, 0, 0.3));
+}
+.combo-banner.hot small {
+  color: #ffdfb0; text-shadow: 0 0 20px rgba(255, 159, 10, 0.75), 0 2px 0 rgba(0, 0, 0, 0.3);
+}
+.combo-banner.legend b {
+  background-image: linear-gradient(180deg, #ffe0ee, #ff375f 50%, #bf5af2);
+  filter: drop-shadow(0 0 44px rgba(255, 55, 95, 0.85)) drop-shadow(0 0 96px rgba(191, 90, 242, 0.6)) drop-shadow(0 4px 0 rgba(0, 0, 0, 0.3));
+}
+.combo-banner.legend small {
+  color: #ffd2e4; text-shadow: 0 0 22px rgba(255, 55, 95, 0.8), 0 2px 0 rgba(0, 0, 0, 0.3);
+}
+/* 结算/里程碑彩带（霓虹纸屑画布，随屏浮层） */
+#confetti-canvas {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  pointer-events: none; z-index: 60;
+}
+/* BPM 呼吸律动（--beat 由 rAF 每帧写入 0→1 包络，HUD/巨型数字随拍明暗） */
+.game-hud { filter: brightness(calc(1 + var(--beat, 0) * 0.07)); }
+#hud-score,
+#hud-combo {
+  text-shadow: 0 0 calc(18px + var(--beat, 0) * 22px) rgba(255, 200, 120, 0.6),
+    0 0 calc(44px + var(--beat, 0) * 52px) rgba(255, 159, 10, 0.35),
+    0 4px 0 rgba(0, 0, 0, 0.3);
+}
+.countdown {
+  text-shadow: 0 0 calc(50px + var(--beat, 0) * 40px) rgba(34, 225, 255, 0.9),
+    0 0 calc(120px + var(--beat, 0) * 80px) rgba(123, 47, 247, 0.8);
 }
 /* 连击数字跳变（每次连击 +1 弹一下） */
 .hud-combo.bump { animation: combo-bump 0.3s ease; }

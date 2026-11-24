@@ -1536,12 +1536,17 @@ async function startGame(chartOverride?: Chart, opts?: GameOpts): Promise<void> 
       $('#hp-fill').style.width = `${(progress * 100).toFixed(1)}%`;
     },
     onMilestone: (combo: number) => {
-      // 连击里程碑横幅（每 10 连击爆发庆祝）
+      // 连击里程碑横幅（每 10 连击爆发，50/100 连击分级加码）
       const el = $('#combo-banner');
-      el.innerHTML = `<b>${combo} COMBO!</b><small>节奏拉满 · 连击不断</small>`;
-      el.classList.remove('show');
+      const tier = combo >= 100 ? 2 : combo >= 50 ? 1 : 0;
+      const sub = tier === 2 ? 'legend时刻 · 无人能挡' : tier === 1 ? '热力全开 · 无人可挡' : '节奏拉满 · 连击不断';
+      el.innerHTML = `<b>${combo} COMBO!</b><small>${sub}</small>`;
+      el.classList.remove('show', 'hot', 'legend');
       void el.offsetWidth;
+      if (tier > 0) el.classList.add('hot');
+      if (tier > 1) el.classList.add('legend');
       el.classList.add('show');
+      burstConfetti(tier === 2 ? 24 : tier === 1 ? 14 : 8);
     },
     onDemo: (action: GameAction | null) => {
       const el = $('#coach-label');
@@ -1621,6 +1626,7 @@ async function startGame(chartOverride?: Chart, opts?: GameOpts): Promise<void> 
   }
 
   game.start().catch((e) => console.error('[wu] game.start 失败', e));
+  startBeatPulse();
 }
 
 const JUDGE_TEXT: Record<JudgeQuality, string> = {
@@ -1644,6 +1650,14 @@ function showJudge(r: JudgeResult): void {
   el.classList.remove('pop');
   void el.offsetWidth;
   el.classList.add('pop');
+  // Perfect 全屏光圈（金砖加强版）
+  if (r.quality === 'perfect') {
+    const ring = $('#perfect-ring');
+    ring.classList.remove('show', 'gold');
+    void ring.offsetWidth;
+    if (r.gold) ring.classList.add('gold');
+    ring.classList.add('show');
+  }
   // miss 红色暗角（受击反馈）
   if (r.quality === 'miss') {
     const flash = $('#miss-flash');
@@ -1651,6 +1665,99 @@ function showJudge(r: JudgeResult): void {
     void flash.offsetWidth;
     flash.classList.add('show');
   }
+}
+
+// ---------- 结算/里程碑彩带（霓虹纸屑） ----------
+interface Confetto {
+  x: number; y: number; vx: number; vy: number;
+  w: number; h: number; rot: number; vr: number;
+  color: string; life: number;
+}
+const CONFETTI_COLORS = ['#ffd60a', '#ff9f0a', '#ff375f', '#66e0ff', '#bf5af2', '#30d158', '#ffffff'];
+const confetti: Confetto[] = [];
+let confettiRaf = 0;
+
+function burstConfetti(n: number): void {
+  const cv = $<HTMLCanvasElement>('#confetti-canvas');
+  const w = cv.clientWidth || window.innerWidth;
+  const h = cv.clientHeight || window.innerHeight;
+  if (cv.width !== w) cv.width = w;
+  if (cv.height !== h) cv.height = h;
+  for (let i = 0; i < n; i++) {
+    confetti.push({
+      x: w * (0.18 + Math.random() * 0.64),
+      y: h * (0.16 + Math.random() * 0.18),
+      vx: (Math.random() - 0.5) * 9,
+      vy: -(3 + Math.random() * 7),
+      w: 6 + Math.random() * 8,
+      h: 3 + Math.random() * 5,
+      rot: Math.random() * Math.PI,
+      vr: (Math.random() - 0.5) * 0.35,
+      color: CONFETTI_COLORS[(Math.random() * CONFETTI_COLORS.length) | 0],
+      life: 1,
+    });
+  }
+  if (!confettiRaf) confettiRaf = requestAnimationFrame(tickConfetti);
+}
+
+function tickConfetti(): void {
+  const cv = $<HTMLCanvasElement>('#confetti-canvas');
+  const ctx = cv.getContext('2d');
+  if (!ctx) { confettiRaf = 0; return; }
+  ctx.clearRect(0, 0, cv.width, cv.height);
+  for (let i = confetti.length - 1; i >= 0; i--) {
+    const c = confetti[i];
+    c.vy += 0.32; // 重力
+    c.vx *= 0.995;
+    c.x += c.vx;
+    c.y += c.vy;
+    c.rot += c.vr;
+    c.life -= 0.014;
+    if (c.life <= 0 || c.y > cv.height + 40) {
+      confetti.splice(i, 1);
+      continue;
+    }
+    ctx.save();
+    ctx.translate(c.x, c.y);
+    ctx.rotate(c.rot);
+    ctx.globalAlpha = Math.min(1, c.life * 1.6);
+    ctx.fillStyle = c.color;
+    ctx.fillRect(-c.w / 2, -c.h / 2, c.w, c.h);
+    ctx.restore();
+  }
+  if (confetti.length) confettiRaf = requestAnimationFrame(tickConfetti);
+  else { confettiRaf = 0; ctx.clearRect(0, 0, cv.width, cv.height); }
+}
+
+// ---------- BPM 呼吸律动（--beat 变量随拍写入，HUD/横幅随拍明暗） ----------
+let beatRaf = 0;
+let beatChart: Chart | null = null;
+
+function startBeatPulse(): void {
+  stopBeatPulse();
+  beatChart = currentChart;
+  if (!beatChart) return;
+  const tick = (): void => {
+    const chart = beatChart;
+    if (!chart || !audio.playing) {
+      document.documentElement.style.setProperty('--beat', '0');
+      beatRaf = requestAnimationFrame(tick);
+      return;
+    }
+    const t = audio.now - audio.songStart - (chart.offsetSec ?? 0);
+    const phase = (((t * chart.bpm) / 60) % 1 + 1) % 1;
+    const env = Math.pow(1 - phase, 2.1);
+    document.documentElement.style.setProperty('--beat', env.toFixed(3));
+    beatRaf = requestAnimationFrame(tick);
+  };
+  beatRaf = requestAnimationFrame(tick);
+}
+
+function stopBeatPulse(): void {
+  if (beatRaf) cancelAnimationFrame(beatRaf);
+  beatRaf = 0;
+  beatChart = null;
+  document.documentElement.style.setProperty('--beat', '0');
 }
 
 // ---------- 左侧剪影窗骨架叠加（白骨架暗底，参考大屏装置） ----------
@@ -1839,6 +1946,7 @@ function updateHud(s: GameStats): void {
 }
 
 async function showResult(s: GameStats): Promise<void> {
+  stopBeatPulse();
   const acc = s.total > 0 ? (s.perfects + s.greats * 0.75 + s.goods * 0.45) / s.total : 0;
   const accPct = Math.round(acc * 100);
   const stars = acc >= 0.95 ? 5 : acc >= 0.88 ? 4 : acc >= 0.75 ? 3 : acc >= 0.6 ? 2 : 1;
@@ -1962,9 +2070,12 @@ async function showResult(s: GameStats): Promise<void> {
     await showIntroCard('YOU WON THE AMAZING DIGITAL CIRCUS!', '你赢了神奇数字马戏团！', '🏆', 2300);
   }
   showScreen('screen-result');
+  // 结算彩带（高光局大爆发，普通局小庆祝）——在结算屏出现后爆，纸屑飘落在结果卡上
+  burstConfetti(stars >= 4 || rec.newRecord || rec.firstClear ? 90 : 30);
 }
 
 function quitGame(): void {
+  stopBeatPulse();
   game?.stop();
   game = null;
   pose?.stop();

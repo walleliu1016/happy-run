@@ -303,6 +303,11 @@ export class Game {
   private oppT = 0;
   private oppWallAt = 0;
   private bloomPass: UnrealBloomPass | null = null;
+  /** BPM 呼吸：环境随拍脉动（日辉/尘埃/辉光） */
+  private sunGlowSprite: THREE.Sprite | null = null;
+  private dustMat: THREE.PointsMaterial | null = null;
+  /** 判定辉光脉冲（perfect 瞬间 kick，随帧衰减并入 bloom 强度） */
+  private bloomKick = 0;
   // 自适应画质（连续低帧 → 降载）
   private degraded = false;
   private fpsAcc = 0;
@@ -421,6 +426,7 @@ export class Game {
     sunGlow.position.set(0, 17, 283);
     sunGlow.scale.setScalar(150);
     this.scene3.add(sunGlow);
+    this.sunGlowSprite = sunGlow;
 
     // 网格地形（发光网格线，主题着色）
     const gridTex = gridTerrainTexture(pal.terrainBase, pal.terrainGrid, pal.terrainGrid);
@@ -553,6 +559,7 @@ export class Game {
       }),
     );
     this.scene3.add(dust);
+    this.dustMat = dust.material as THREE.PointsMaterial;
 
     // 静态网格冻结矩阵（滚动拱门除外），省每帧矩阵重算
     this.scene3.traverse((o) => {
@@ -1183,6 +1190,7 @@ export class Game {
         this.audio.hit(r.quality);
       }
       this.flash = r.quality === 'perfect' ? 0.5 : r.quality === 'great' ? 0.34 : 0.22;
+      if (r.quality === 'perfect') this.bloomKick = gold ? 1.15 : 1;
       this.burst(r.quality === 'perfect' ? 0xffd60a : r.quality === 'great' ? 0x66d9ff : 0x9fd8ff);
       // 顿帧 + 镜头冲击（打击感核心）：金砖加长
       this.hitStop = Math.max(
@@ -1192,13 +1200,16 @@ export class Game {
       if (r.quality !== 'good') {
         this.fovKick = Math.max(this.fovKick, r.quality === 'perfect' ? 1 : 0.55);
       }
-      // 连击里程碑（每 10 连击爆发一次）
+      // 连击里程碑（每 10 连击爆发一次；50/100 连击分级加码）
       if (this.stats.combo % 10 === 0) {
+        const tier = this.stats.combo >= 100 ? 2 : this.stats.combo >= 50 ? 1 : 0;
         this.hooks.onMilestone?.(this.stats.combo);
         this.spawnHitRing(0xffd60a, 0, 1.3, true);
         this.burst(0xffd60a, 0, 1.9, RING_Z);
-        this.shake = Math.max(this.shake, 0.32);
-        this.fovKick = Math.max(this.fovKick, 0.9);
+        if (tier > 0) this.burst(0xff9f0a, 0, 2.3, RING_Z);
+        if (tier > 1) this.burst(0xff375f, 0, 2.7, RING_Z);
+        this.shake = Math.max(this.shake, 0.32 + tier * 0.16);
+        this.fovKick = Math.max(this.fovKick, 0.9 + tier * 0.3);
       }
     }
     this.gateFlash = 1;
@@ -1455,12 +1466,21 @@ export class Game {
       if (br.glow) br.glow.intensity = br.judged ? 0.8 : 3 + Math.sin(this.visT * 6) * 0.9;
     }
 
-    // 判定环脉冲
+    // 判定环脉冲 + BPM 呼吸（gate/日辉/尘埃/辉光随拍包络明暗）
     if (this.gateFlash > 0) {
       this.gateFlash = Math.max(0, this.gateFlash - dt * 2.6);
     }
-    this.gateStrip.opacity = 0.32 + this.gateFlash * 0.68;
+    const beatPhase = ((((this.visT - (this.chart.offsetSec ?? 0)) * bpm) / 60) % 1 + 1) % 1;
+    const beatEnv = Math.pow(1 - beatPhase, 2.1);
+    this.gateStrip.opacity = 0.32 + this.gateFlash * 0.68 + beatEnv * 0.12;
+    if (this.sunGlowSprite) this.sunGlowSprite.material.opacity = 0.32 + beatEnv * 0.14;
+    if (this.dustMat) this.dustMat.opacity = 0.38 + beatEnv * 0.12;
     for (const m of this.gatePostMats) m.emissiveIntensity = 0.8 + this.gateFlash * 1.7;
+    if (this.bloomPass) {
+      if (this.bloomKick > 0.002) this.bloomKick *= 0.9;
+      else this.bloomKick = 0;
+      this.bloomPass.strength = 0.42 + beatEnv * 0.05 + this.bloomKick * 0.4;
+    }
 
     // 相机跳跃反馈（判定动作驱动）
     this.jumpVy -= GRAVITY * dt;
