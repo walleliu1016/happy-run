@@ -615,20 +615,6 @@ body {
   .style-chip, .look-chip { min-height: 44px; padding: 10px 16px; }
 }
 
-/* 竖屏视口时的横排提示条（横排兜底生效时贴在横排世界顶部，全屏通用） */
-.rotate-hint { display: none; }
-body.force-landscape .rotate-hint {
-  display: flex; align-items: center; justify-content: center;
-  position: fixed; top: 0; left: 0; right: 0; z-index: 80;
-  height: 36px; padding: 0 16px;
-  background: rgba(12, 6, 30, 0.85); color: #fff;
-  font-size: 13px; font-weight: 700; letter-spacing: 1px;
-  white-space: nowrap; pointer-events: none;
-}
-/* 提示条压住横排世界顶部 36px，内容让位 */
-body.force-landscape #screen-game .game-hud { padding-top: 48px; }
-body.force-landscape .topbar { padding-top: 46px; }
-
 /* Pad / 窄屏笔记本（≤1100px） */
 @media (max-width: 1100px) {
   .check-grid, .menu-wrap { grid-template-columns: 1fr; overflow-y: auto; }
@@ -719,7 +705,7 @@ body.force-landscape .topbar { padding-top: 46px; }
 .levels-title-cn { font-size: 0.55em; color: var(--ink-2); font-weight: 600; }
 .levels-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(clamp(172px, 14vw, 220px), 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(clamp(118px, 10vw, 150px), 1fr));
   gap: clamp(10px, 1.3vw, 18px);
 }
 .level-poster {
@@ -728,6 +714,8 @@ body.force-landscape .topbar { padding-top: 46px; }
   background: #14121f; box-shadow: var(--shadow); font-family: var(--font);
   transition: transform 0.18s ease, box-shadow 0.18s ease;
   --lp-accent: #ff9500;
+  width: 100%; max-width: 280px; justify-self: center;
+  container-type: inline-size; /* 文字随卡片缩放，不跟窗口 vw 走 */
 }
 .level-poster:hover { transform: translateY(-5px) scale(1.015); box-shadow: 0 22px 54px rgba(0, 0, 0, 0.22); }
 .level-poster:active { transform: scale(0.98); }
@@ -738,28 +726,32 @@ body.force-landscape .topbar { padding-top: 46px; }
 .lp-emoji {
   position: absolute; left: 0; right: 0; top: 50%;
   text-align: center; line-height: 1;
-  font-size: clamp(84px, 17vw, 170px); opacity: 0.42;
+  font-size: clamp(56px, 17vw, 170px); font-size: 52cqw; opacity: 0.42;
   transform: translateY(-58%) rotate(-6deg);
   filter: grayscale(0.1);
 }
 .lp-lv {
   position: absolute; top: 7%; left: 8%;
-  font-size: clamp(30px, 3.4vw, 52px); font-weight: 900; letter-spacing: -1px; line-height: 1;
+  font-size: clamp(20px, 3.4vw, 52px); font-size: 18cqw;
+  font-weight: 900; letter-spacing: -1px; line-height: 1;
   text-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
 }
 .lp-name {
-  position: absolute; left: 8%; bottom: 25%;
-  font-size: clamp(15px, 1.5vw, 25px); font-weight: 800; font-style: italic; letter-spacing: 0.5px;
+  position: absolute; left: 8%; right: 8%; bottom: 25%;
+  font-size: clamp(11px, 1.5vw, 25px); font-size: 9cqw;
+  font-weight: 800; font-style: italic; letter-spacing: 0.5px; line-height: 1.15;
   text-shadow: 0 2px 12px rgba(0, 0, 0, 0.5);
 }
 .lp-sub {
-  position: absolute; left: 8%; bottom: 13.5%;
-  font-size: clamp(11px, 1.05vw, 17px); color: #ffd60a; font-weight: 700;
+  position: absolute; left: 8%; right: 8%; bottom: 13.5%;
+  font-size: clamp(9px, 1.05vw, 17px); font-size: 6.5cqw;
+  color: #ffd60a; font-weight: 700; line-height: 1.2;
   text-shadow: 0 2px 12px rgba(0, 0, 0, 0.5);
 }
 .lp-cn {
-  position: absolute; left: 8%; bottom: 5.5%;
-  font-size: clamp(11px, 1vw, 16px); color: rgba(255, 255, 255, 0.72);
+  position: absolute; left: 8%; right: 8%; bottom: 5.5%;
+  font-size: clamp(9px, 1vw, 16px); font-size: 6.5cqw;
+  color: rgba(255, 255, 255, 0.72); line-height: 1.2;
   text-shadow: 0 2px 12px rgba(0, 0, 0, 0.5);
 }
 .level-poster.free { --lp-accent: #0071e3; }
@@ -767,9 +759,10 @@ body.force-landscape .topbar { padding-top: 46px; }
 /* 海报 PB 徽章（有记录才显示） */
 .lp-best {
   position: absolute; top: 6%; right: 6%;
-  padding: 5px 12px; border-radius: 999px;
+  padding: 2cqw 4cqw; border-radius: 999px;
   background: rgba(0, 0, 0, 0.45); backdrop-filter: blur(6px);
-  font-size: clamp(11px, 0.95vw, 15px); font-weight: 700; color: #ffd60a;
+  font-size: clamp(9px, 0.95vw, 15px); font-size: 5.5cqw;
+  font-weight: 700; color: #ffd60a;
   letter-spacing: 0.2px;
 }
 
@@ -928,7 +921,6 @@ body.force-landscape .topbar { padding-top: 46px; }
 
 /* 1:1 组件多端微调 */
 @media (max-width: 720px) {
-  .levels-grid { grid-template-columns: repeat(2, 1fr); }
   .hud-progress { width: min(56vw, 340px); top: 8px; }
   .cue { top: 42px; }
   .sl { width: 24vmin; height: 24vmin; }

@@ -244,8 +244,6 @@ function syncForceLandscape(): void {
   if (on) {
     document.documentElement.style.setProperty('--fl-w', `${window.innerHeight}px`);
     document.documentElement.style.setProperty('--fl-h', `${window.innerWidth}px`);
-    const hint = document.querySelector('.rotate-hint');
-    if (hint) hint.textContent = isTvDevice() ? '🔄 请将设备调为横屏显示' : '🔄 把手机横过来';
   }
   document.body.classList.toggle('force-landscape', on);
   game?.resize();
