@@ -434,7 +434,6 @@
     <!-- ============ 屏幕 3：游戏 ============ -->
     <section class="screen" id="screen-game">
       <canvas id="game-canvas"></canvas>
-      <div class="rotate-hint">📱 建议横屏体验更佳</div>
       <div class="speed-lines" aria-hidden="true"><i class="sl sl-tl"></i><i class="sl sl-tr"></i><i class="sl sl-bl"></i><i class="sl sl-br"></i></div>
       <div class="hud-progress" id="hud-progress"><span class="hp-dot hp-dot-l"></span><div class="hp-fill" id="hp-fill"></div><span class="hp-dot hp-dot-r"></span></div>
       <div class="cue" id="cue" hidden>
@@ -549,10 +548,11 @@
         </div>
       </div>
     </div>
+    <div class="rotate-hint">📱 建议横屏体验更佳</div>
+    <div id="pose-hint" class="pose-hint" hidden></div>
+    <div id="toast" class="toast" hidden></div>
+    <div id="tv-hint-bar" class="tv-hint-bar" hidden>🎮 遥控器：方向键移动光标 · OK 选择 · 返回键 = 退出对局 / 回上页</div>
   </div>
-  <div id="pose-hint" class="pose-hint" hidden></div>
-  <div id="toast" class="toast" hidden></div>
-  <div id="tv-hint-bar" class="tv-hint-bar" hidden>🎮 遥控器：方向键移动光标 · OK 选择 · 返回键 = 退出对局 / 回上页</div>
   <script type="module" src="./src/main.ts"></script>
 </body>
 </html>

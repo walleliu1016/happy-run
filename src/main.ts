@@ -214,22 +214,21 @@ function showScreen(id: string): void {
   document.querySelectorAll('.screen').forEach((s) => s.classList.remove('active'));
   $(`#${id}`).classList.add('active');
   if (id === 'screen-menu') renderLevels(); // PB/星星可能更新，海报徽章刷一遍
-  // 横屏会话收尾：退回菜单/准备/设置/体检即恢复竖屏并退出全屏
-  if (id === 'screen-menu' || id === 'screen-prepare' || id === 'screen-settings' || id === 'screen-check') {
-    landscapeSession = false;
-    if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
-  }
-  syncGameOrientation();
+  syncForceLandscape(); // 打开即横排：任何屏都保持横排，不再按屏重置
 }
 
-// ---------- 进游戏即横排 ----------
-// 主路径：进游戏时全屏 + 系统转向锁（Android Chrome 等支持的环境直接真横屏）；
-// 兜底：转向锁不可用（iOS / 竖屏锁死的 WebView）时把对局流转屏旋转 90° 呈横排，
+// ---------- 打开即横排（全 App：菜单/准备/设置/对局一视同仁） ----------
+// 主路径：全屏 + 系统转向锁（Android Chrome 等支持的环境直接真横屏）；
+// 兜底：转向锁不可用（iOS / 竖屏锁死的 WebView）时把整个 #app 连屏带浮层旋转 90° 呈横排，
 // 用户把手机横过来即为正向；视口已是横屏则两路都不干预。
-let landscapeSession = false;
+
+/** 桌面鼠标不折腾；手机触屏与 TV（遥控器 pointer: none，(pointer: coarse) 不匹配）都要横排 */
+function forceLandscapeCapable(): boolean {
+  return matchMedia('(pointer: coarse)').matches || isTvDevice();
+}
 
 async function requestLandscape(): Promise<void> {
-  if (!matchMedia('(pointer: coarse)').matches) return; // 桌面不折腾
+  if (!forceLandscapeCapable()) return;
   try {
     if (!document.fullscreenElement) await document.documentElement.requestFullscreen?.();
   } catch { /* 不支持则走 CSS 兜底 */ }
@@ -239,15 +238,16 @@ async function requestLandscape(): Promise<void> {
   } catch { /* 同上 */ }
 }
 
-function syncGameOrientation(): void {
+function syncForceLandscape(): void {
   const portrait = window.innerHeight > window.innerWidth;
-  const on = landscapeSession && portrait && matchMedia('(pointer: coarse)').matches;
+  const on = portrait && forceLandscapeCapable();
   if (on) {
     document.documentElement.style.setProperty('--fl-w', `${window.innerHeight}px`);
     document.documentElement.style.setProperty('--fl-h', `${window.innerWidth}px`);
-    document.querySelector('.rotate-hint')!.textContent = '🔄 把手机横过来玩';
+    const hint = document.querySelector('.rotate-hint');
+    if (hint) hint.textContent = isTvDevice() ? '🔄 请将设备调为横屏显示' : '🔄 把手机横过来';
   }
-  document.body.classList.toggle('game-landscape', on);
+  document.body.classList.toggle('force-landscape', on);
   game?.resize();
 }
 
@@ -1281,7 +1281,6 @@ function restartCurrent(): void {
 
 // ---------- 游戏 ----------
 async function startGame(chartOverride?: Chart, opts?: GameOpts): Promise<void> {
-  landscapeSession = true;
   void requestLandscape(); // 尽早发起（吃手势时效），结果由 resize 回调收敛
   await audio.init();
   showScreen('screen-game');
@@ -1909,8 +1908,13 @@ function boot(): void {
 
   setupMenu();
   setupCast();
-  window.addEventListener('resize', () => syncGameOrientation());
-  window.addEventListener('orientationchange', () => window.setTimeout(syncGameOrientation, 60));
+  window.addEventListener('resize', () => syncForceLandscape());
+  window.addEventListener('orientationchange', () => window.setTimeout(syncForceLandscape, 60));
+  syncForceLandscape(); // 打开即横排：首屏直接生效（CSS 兜底不依赖手势）
+  // 全屏+转向锁需用户手势：首次触摸/按键时补一次请求（结果仍由 resize 回调收敛）
+  const onceGesture = () => void requestLandscape();
+  document.addEventListener('pointerdown', onceGesture, { once: true, capture: true });
+  document.addEventListener('keydown', onceGesture, { once: true, capture: true });
 
   // P0/P1：星星计数 + 影子挑战横幅（菜单可见前预置）
   refreshStarCount();

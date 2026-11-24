@@ -30,7 +30,7 @@ body {
 #app { height: 100vh; height: 100dvh; }
 
 /* ===== 屏幕路由 ===== */
-.screen { display: none; height: 100vh; height: 100dvh; overflow: hidden; }
+.screen { display: none; height: 100%; overflow: hidden; }
 .screen.active { display: flex; flex-direction: column; }
 
 /* ===== 顶栏 ===== */
@@ -615,19 +615,19 @@ body {
   .style-chip, .look-chip { min-height: 44px; padding: 10px 16px; }
 }
 
-/* 手机竖屏提示（游戏内） */
+/* 竖屏视口时的横排提示条（横排兜底生效时贴在横排世界顶部，全屏通用） */
 .rotate-hint { display: none; }
-@media (orientation: portrait) and (max-width: 920px) {
-  .rotate-hint {
-    display: flex; align-items: center; justify-content: center;
-    position: absolute; top: 0; left: 0; right: 0; z-index: 30;
-    height: 36px; padding: 0 16px;
-    background: rgba(12, 6, 30, 0.85); color: #fff;
-    font-size: 13px; font-weight: 700; letter-spacing: 1px;
-    pointer-events: none;
-  }
-  #screen-game .game-hud { padding-top: 48px; }
+body.force-landscape .rotate-hint {
+  display: flex; align-items: center; justify-content: center;
+  position: fixed; top: 0; left: 0; right: 0; z-index: 80;
+  height: 36px; padding: 0 16px;
+  background: rgba(12, 6, 30, 0.85); color: #fff;
+  font-size: 13px; font-weight: 700; letter-spacing: 1px;
+  white-space: nowrap; pointer-events: none;
 }
+/* 提示条压住横排世界顶部 36px，内容让位 */
+body.force-landscape #screen-game .game-hud { padding-top: 48px; }
+body.force-landscape .topbar { padding-top: 46px; }
 
 /* Pad / 窄屏笔记本（≤1100px） */
 @media (max-width: 1100px) {
@@ -1378,10 +1378,10 @@ body {
 /* 口令圆盘移到 HUD 簇下方空档，缩一点，别压计时器/连击 */
 #screen-game.pk-split .cue { left: 25%; top: 30%; transform: translateX(-50%) scale(0.78); }
 
-/* ===== 进游戏即横排（转向锁不可用时的兜底） ===== */
-/* 游戏流转屏旋转 90° 呈横排，用户把手机横过来即为正向；视口已横屏时 JS 不加类，此块不生效 */
-body.game-landscape .screen.active {
-  position: fixed; top: 0; left: 0; z-index: 60;
+/* ===== 打开即横排（全 App，转向锁不可用时的兜底） ===== */
+/* 整个 #app（屏幕 + 弹层 + Toast）流屏旋转 90° 呈横排，用户把手机横过来即为正向；视口已横屏时 JS 不加类，此块不生效 */
+body.force-landscape #app {
+  position: fixed; top: 0; left: 0;
   width: var(--fl-w, 100vh); height: var(--fl-h, 100vw);
   transform-origin: 0 0;
   transform: rotate(90deg) translateY(-100%);
