@@ -45,7 +45,7 @@ class MainActivity : Activity() {
     // &v= 版本戳：升级安装后 URL 变化，旧 WebView 缓存自然失效（缓存键不同）；
     // 服务端对 HTML 发 no-cache 头，之后每次启动都协商到最新版，大资源仍走缓存。
     private val gameUrl: String
-        get() = "https://wbapp-yzfyjhdipy6i6cwc3v0zk2.app.workbuddy.host/?sharecode=T42CWLJYMM&v=1.2" +
+        get() = "https://wbapp-yzfyjhdipy6i6cwc3v0zk2.app.workbuddy.host/?sharecode=T42CWLJYMM&v=1.3" +
             if (isTv()) "&tv=1" else ""
 
     private fun isTv(): Boolean {
@@ -79,6 +79,13 @@ class MainActivity : Activity() {
                 view: WebView?,
                 request: WebResourceRequest?,
             ): Boolean = false // 站内导航都留在壳里
+
+            override fun onPageFinished(view: WebView?, url: String?) {
+                super.onPageFinished(view, url)
+                // 遥控「开箱即用」：页面加载完立刻把视图焦点给 WebView，
+                // 不用用户先点一下屏幕方向键才有反应
+                view?.requestFocus()
+            }
 
             override fun onReceivedError(
                 view: WebView?,
@@ -136,16 +143,29 @@ class MainActivity : Activity() {
     /**
      * D-pad / OK 键优先交给 WebView：部分盒子（尤其手机遥控器注入的按键）
      * 在 Activity 焦点链路里会丢方向键，这里显式 dispatch 给 DOM，不依赖默认转发。
+     * WebView 也没接住（返回 false，焦点被系统吃掉）时走 JS 桥注入 __tvKey，
+     * 合成 KeyboardEvent 走网页同一套处理——遥控永不「卡死」，键名归一在网页侧做。
      */
     override fun dispatchKeyEvent(event: KeyEvent?): Boolean {
         if (event != null) {
-            when (event.keyCode) {
-                KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_DPAD_DOWN,
-                KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_DPAD_RIGHT,
+            val name = when (event.keyCode) {
+                KeyEvent.KEYCODE_DPAD_UP -> "ArrowUp"
+                KeyEvent.KEYCODE_DPAD_DOWN -> "ArrowDown"
+                KeyEvent.KEYCODE_DPAD_LEFT -> "ArrowLeft"
+                KeyEvent.KEYCODE_DPAD_RIGHT -> "ArrowRight"
                 KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER,
-                KeyEvent.KEYCODE_NUMPAD_ENTER, KeyEvent.KEYCODE_SPACE -> {
-                    if (web.dispatchKeyEvent(event)) return true
-                }
+                KeyEvent.KEYCODE_NUMPAD_ENTER -> "Enter"
+                KeyEvent.KEYCODE_SPACE -> " "
+                else -> null
+            }
+            if (name != null) {
+                if (web.dispatchKeyEvent(event)) return true
+                val up = event.action == KeyEvent.ACTION_UP
+                web.evaluateJavascript(
+                    "window.__tvKey&&window.__tvKey('$name',$up,${event.repeat})"
+                ) {}
+                web.requestFocus() // 顺手把焦点要回来，下一颗键走原生链路
+                return true
             }
         }
         return super.dispatchKeyEvent(event)
@@ -174,6 +194,7 @@ class MainActivity : Activity() {
     override fun onResume() {
         super.onResume()
         web.onResume()
+        web.requestFocus() // 从屏保/别的应用回来遥控立刻可用
     }
 
     override fun onDestroy() {

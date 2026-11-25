@@ -11,8 +11,8 @@ android {
         applicationId = "com.happyrun.tv"
         minSdk = 21
         targetSdk = 34
-        versionCode = 3
-        versionName = "1.2"
+        versionCode = 4
+        versionName = "1.3"
     }
 
     // 签名：使用 CI 缓存生成的稳定调试密钥（无任何密钥入库）。

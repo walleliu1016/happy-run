@@ -28,7 +28,7 @@ import { ActionClassifier } from './input/classifier';
 import { GamepadInput, connectedPadNames } from './input/gamepad';
 import { PoseInput } from './input/pose';
 import { Pairing, randomCode } from './input/remote';
-import { attachTvNav, normKey } from './input/tvnav';
+import { attachTvNav, injectTvKey, normKey } from './input/tvnav';
 import type {
   Chart, ChartStyle, CoachSkin, Difficulty, GameAction, GameStats, InputSource,
   JudgeQuality, JudgeResult, SceneMode, SceneTheme, SectionKind,
@@ -1226,7 +1226,7 @@ function refreshPadStatus(): void {
   const short = on ? shortPadName(names[0]) : '';
   const st = $('#pad-status');
   if (st) {
-    st.textContent = on ? `🟢 已连接：${short}` : '⚪ 未连接 · 点「Joy 手柄怎么连」看步骤';
+    st.textContent = on ? `🟢 已连接：${short}` : '⚪ 未连接';
     st.classList.toggle('on', on);
   }
   const chip = $('#pad-chip');
@@ -1236,14 +1236,8 @@ function refreshPadStatus(): void {
   }
   const det = $('#pad-detect');
   if (det) {
-    det.textContent = on
-      ? `✅ 已连接：${names[0].slice(0, 36)}`
-      : '⏳ 等待手柄… 配对好后请按一下任意按键';
+    det.textContent = on ? `✅ 已连接：${short}` : '⏳ 等待手柄… 按一下任意键';
     det.classList.toggle('on', on);
-  }
-  const dev = $('#pad-devices');
-  if (dev) {
-    dev.innerHTML = on ? names.map((n) => `${joyIcon('ic-joy-s')} ${escapeHtml(n)}`).join('<br/>') : '';
   }
   const hudPad = $('#hud-pad');
   if (hudPad) {
@@ -3066,6 +3060,8 @@ function setupMenu(): void {
   attachTvNav(
     () => game !== null || document.querySelector('#calib-overlay')?.classList.contains('show') === true,
   );
+  // 原生壳按键桥：盒子焦点链路丢键时 MainActivity 调 __tvKey 注入（见 tvnav.injectTvKey）
+  (window as unknown as { __tvKey?: typeof injectTvKey }).__tvKey = injectTvKey;
 
   // TV APK 返回键钩子：1=已在网页内处理（退出对局/返回上屏），0=留给壳双击退出
   (window as unknown as { __tvBack?: () => number }).__tvBack = () => goBack();

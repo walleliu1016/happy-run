@@ -1,7 +1,11 @@
-// TV / 遥控器 D-pad 焦点导航
-// 方向键在当前屏幕的可聚焦元素间按几何方位移动焦点，OK/Enter/Space 触发；
-// 游戏进行中（busy）完全放行，不抢游戏按键。
-// 电视 3 米观看距离：焦点环要大、要亮（.tv-focus，见 styles.css）。
+// TV / 遥控器 D-pad 焦点导航（对齐腾讯视频 TV / New TV 极光的焦点规则）
+// - 焦点唯一且醒目（.tv-focus 金色大光环，见 styles.css）
+// - 十字就近：方向键在当前层的可聚焦元素间按几何方位移动
+// - 引导用户：进屏/进弹层焦点自动落位（主内容区优先，弹层落层内）
+// - 焦点记忆：「上次从哪来，就回哪去」——离层再回来，焦点回到原处
+// - 顶层弹层优先：弹层打开时焦点困在弹层内，不跑到弹层背后（遥控唯一真理）
+// - OK/Enter/Space 触发；游戏对局中（busy）完全放行，不抢游戏按键
+// - 原生壳按键桥 __tvKey：盒子焦点链路丢键时由 MainActivity 注入，合成事件走同一套处理
 
 type Dir = 'up' | 'down' | 'left' | 'right';
 
@@ -24,6 +28,17 @@ export function normKey(e: KeyboardEvent): string {
   return KEY_ALIASES[k] ?? k;
 }
 
+/**
+ * 原生壳按键桥（window.__tvKey）：部分盒子在 Activity 焦点链路里丢方向键，
+ * MainActivity 无法把 KeyEvent 送进 DOM 时调用这里，合成 KeyboardEvent
+ * 走 window keydown/keyup 同一套处理（tvnav + 游戏按键映射全部生效）。
+ */
+export function injectTvKey(key: string, up = false, repeat = false): void {
+  window.dispatchEvent(new KeyboardEvent(up ? 'keyup' : 'keydown', {
+    key, repeat, bubbles: true, cancelable: true,
+  }));
+}
+
 const FOCUSABLE =
   'button:not([disabled]), [role="button"], input:not([type="hidden"]):not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href]';
 
@@ -31,15 +46,29 @@ const NATIVE_INPUT = 'input, textarea, select';
 
 let cur: HTMLElement | null = null;
 
+/** 焦点记忆：层 id → 上次聚焦元素（「从哪来，回哪去」） */
+const focusMemory = new Map<string, HTMLElement>();
+
 function isVisible(el: HTMLElement): boolean {
   const style = getComputedStyle(el);
   return style.display !== 'none' && style.visibility !== 'hidden' && el.getClientRects().length > 0;
 }
 
+/** 当前交互层：最上层弹层优先（弹层打开时焦点不许跑到背后），否则当前屏 */
+function activeLayer(): HTMLElement | null {
+  const overlays = document.querySelectorAll<HTMLElement>('.nick-overlay.show, .calib-overlay.show');
+  if (overlays.length) return overlays[overlays.length - 1];
+  return document.querySelector<HTMLElement>('.screen.active');
+}
+
+function layerKey(layer: HTMLElement): string {
+  return layer.id || layer.className;
+}
+
 function focusables(): HTMLElement[] {
-  const screen = document.querySelector('.screen.active');
-  if (!screen) return [];
-  return [...screen.querySelectorAll<HTMLElement>(FOCUSABLE)].filter(isVisible);
+  const layer = activeLayer();
+  if (!layer) return [];
+  return [...layer.querySelectorAll<HTMLElement>(FOCUSABLE)].filter(isVisible);
 }
 
 function focusEl(el: HTMLElement): void {
@@ -48,13 +77,23 @@ function focusEl(el: HTMLElement): void {
   el.focus({ preventScroll: true });
   el.scrollIntoView({ block: 'nearest', inline: 'nearest' });
   cur = el;
+  const layer = activeLayer();
+  if (layer) focusMemory.set(layerKey(layer), el);
+}
+
+/** 初始/回归焦点：优先焦点记忆，其次主内容区（topbar 是辅助操作，开场不落它），兜底第一个 */
+function initialFocus(items: HTMLElement[]): HTMLElement {
+  const layer = activeLayer();
+  const remembered = layer ? focusMemory.get(layerKey(layer)) : undefined;
+  if (remembered && items.includes(remembered)) return remembered;
+  return items.find((el) => !el.closest('.topbar')) ?? items[0];
 }
 
 function move(dir: Dir): void {
   const items = focusables();
   if (!items.length) return;
   if (!cur || !items.includes(cur)) {
-    focusEl(items[0]);
+    focusEl(initialFocus(items));
     return;
   }
   const r = cur.getBoundingClientRect();
@@ -84,7 +123,7 @@ function move(dir: Dir): void {
   if (best) focusEl(best);
 }
 
-/** 屏幕切换 / DOM 重建后重置焦点到第一个可聚焦元素 */
+/** 屏幕/弹层切换、DOM 重建后焦点自动落位（有记忆回记忆，否则主内容区） */
 function resetSoon(): void {
   requestAnimationFrame(() => {
     const items = focusables();
@@ -93,7 +132,7 @@ function resetSoon(): void {
       cur = null;
       return;
     }
-    if (!cur || !items.includes(cur)) focusEl(items[0]);
+    if (!cur || !items.includes(cur)) focusEl(initialFocus(items));
   });
 }
 
@@ -124,7 +163,7 @@ export function attachTvNav(isBusy: () => boolean): void {
     if (key === 'Enter' || key === ' ') {
       if (e.repeat) return;
       const items = focusables();
-      const target = (cur && items.includes(cur) ? cur : items[0]) ?? null;
+      const target = (cur && items.includes(cur) ? cur : initialFocus(items)) ?? null;
       if (!target) return;
       e.preventDefault();
       focusEl(target);
@@ -160,7 +199,7 @@ export function attachTvNav(isBusy: () => boolean): void {
         const el = t.target instanceof Element ? t.target.closest(FOCUSABLE) : null;
         if (el) return;
         const items = focusables();
-        const target = (cur && items.includes(cur) ? cur : items[0]) ?? null;
+        const target = (cur && items.includes(cur) ? cur : initialFocus(items)) ?? null;
         if (!target) return;
         focusEl(target);
         target.click();
@@ -172,8 +211,10 @@ export function attachTvNav(isBusy: () => boolean): void {
     }, { passive: true });
   }
 
-  // 屏幕切换（.screen.active 变化）后自动重置焦点
+  // 屏幕切换 / 弹层开关（.show）后自动落位焦点
   const obs = new MutationObserver(() => resetSoon());
-  document.querySelectorAll('.screen').forEach((s) => obs.observe(s, { attributes: true, attributeFilter: ['class'] }));
+  document
+    .querySelectorAll('.screen, .nick-overlay, .calib-overlay')
+    .forEach((s) => obs.observe(s, { attributes: true, attributeFilter: ['class'] }));
   resetSoon();
 }
