@@ -20,9 +20,9 @@ import {
   chartFromGhost, ghostFromRun, ghostScoreAt, ghostShareUrl, parseGhostHash, type GhostData,
 } from './engine/ghost';
 import {
-  lbBoard, lbSubmit, pkCreateRoom, pkJoinRoom, pkLeave, pkOnline, pkRematch, pkResult, pkRoomList,
-  pkRoomStatus, pkSync,
-  type PkPlayer, type PkResult, type PkRoomList, type PkRoomState,
+  lbBoard, lbSubmit, pkCreateRoom, pkInvite, pkInviteCancel, pkInviteRespond, pkJoinRoom, pkLeave,
+  pkPresence, pkRematch, pkResult, pkRoomList, pkRoomStatus, pkSync,
+  type PkInvite, type PkPlayer, type PkResult, type PkRoomList, type PkRoomState, type PresenceState,
 } from './pk';
 import { ActionClassifier } from './input/classifier';
 import { GamepadInput, connectedPadNames } from './input/gamepad';
@@ -431,6 +431,7 @@ function renderProfile(): void {
   nameInput.value = localStorage.getItem('wu.lbName') ?? '';
   $<HTMLButtonElement>('#lb-name-save').onclick = () => {
     localStorage.setItem('wu.lbName', nameInput.value.trim().slice(0, 12));
+    renderNick();
     showToast('上榜昵称已保存');
   };
   renderLb();
@@ -1138,12 +1139,51 @@ function pkInviteUrl(code: string): string {
   return u.toString();
 }
 
+// ---------- 全局身份：playerId + 昵称（PK / 榜单 / 在线共用一套） ----------
+function myId(): string {
+  let id = localStorage.getItem('wu.playerId');
+  if (!id) {
+    id = typeof crypto !== 'undefined' && 'randomUUID' in crypto
+      ? crypto.randomUUID()
+      : `p-${Date.now().toString(36)}-${Math.floor(Math.random() * 1e6).toString(36)}`;
+    localStorage.setItem('wu.playerId', id);
+  }
+  return id;
+}
+function myName(): string {
+  return (localStorage.getItem('wu.lbName') || '').trim().slice(0, 12) || '匿名玩家';
+}
+/** 右上角昵称 chip（菜单/PK 页多个节点同步） */
+function renderNick(): void {
+  document.querySelectorAll<HTMLElement>('.nick-chip').forEach((el) => {
+    el.textContent = `👤 ${myName()}`;
+  });
+}
+/** 自绘昵称弹层（红线：不用原生 prompt，APK 兜底横排弹窗不跟转） */
+function openNickModal(): void {
+  const modal = $('#nick-modal');
+  const input = $<HTMLInputElement>('#nick-input');
+  if (!modal || !input) return;
+  input.value = myName() === '匿名玩家' ? '' : myName();
+  modal.classList.add('show');
+  input.focus();
+}
+function closeNickModal(): void {
+  $('#nick-modal')?.classList.remove('show');
+}
+function saveNick(): void {
+  const input = $<HTMLInputElement>('#nick-input');
+  const name = (input?.value ?? '').trim().slice(0, 12) || '匿名玩家';
+  localStorage.setItem('wu.lbName', name);
+  const lbInput = $<HTMLInputElement>('#lb-name');
+  if (lbInput) lbInput.value = name;
+  renderNick();
+  closeNickModal();
+  showToast('昵称已保存');
+  void pollPresence(); // 立即同步给在线列表
+}
 function pkSaveName(): string {
-  const input = $<HTMLInputElement>('#pk-name');
-  const name = input.value.trim() || '玩家';
-  input.value = name;
-  localStorage.setItem('wu.pkname', name);
-  return name;
+  return myName();
 }
 
 function diffLabel(d: string): string {
@@ -1304,24 +1344,187 @@ function renderPkRoomList(list: PkRoomList): void {
   });
 }
 
+// ---------- 在线玩家 + 点对点 PK 邀请 ----------
+let presenceTimer = 0;
+let presenceBusy = false;
+let fastPollUntil = 0; // 发出邀请后短暂加速心跳，让发起方尽早拿到房间、双方对齐开跑
+let shownInviteId = ''; // 当前弹窗的邀请 id（同一邀请只弹一次）
+const joinHandled = new Set<string>(); // 已进过的被接受房间（防重复进房）
+const myInviteState = new Map<string, string>(); // invId -> 上次 state（变化时 toast）
+
+function avatarFor(id: string): string {
+  const icons = ['🐯', '🐰', '🦊', '🐼', '🐸', '🦁', '🐵', '🦄', '🐺', '🐱', '🐮', '🐷'];
+  let h = 0;
+  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) | 0;
+  return icons[Math.abs(h) % icons.length];
+}
+
+/** 心跳：在线列表 + 邀请收发反馈 + 被接受的房间（进 VS） */
+async function pollPresence(): Promise<void> {
+  if (presenceBusy) return;
+  presenceBusy = true;
+  try {
+    await pollPresenceOnce();
+  } finally {
+    presenceBusy = false;
+  }
+}
+async function pollPresenceOnce(): Promise<void> {
+  let st: PresenceState;
+  try {
+    st = await pkPresence(myId(), myName());
+  } catch {
+    return; // 网络异常静默
+  }
+  renderOnline(st);
+  // 我发出的邀请：状态变化时反馈（accepted 的进房由 joinRoom 统一处理）
+  for (const inv of st.myInvites) {
+    const prev = myInviteState.get(inv.id);
+    myInviteState.set(inv.id, inv.state);
+    if (prev && prev !== inv.state) {
+      const who = inv.toName || '对手';
+      if (inv.state === 'accepted') showToast(`⚔️ ${who} 接受了你的 PK 邀请，开战！`);
+      else if (inv.state === 'rejected') showToast(`✖ ${who} 拒绝了你的邀请`);
+      else if (inv.state === 'expired') showToast(`⌛ 发给 ${who} 的邀请已过期`);
+    }
+  }
+  // 被接受的房间：发起方在这里拿到房间视图，直接进 VS 倒计时
+  const jr = st.joinRoom;
+  if (jr && !joinHandled.has(jr.roomCode) && pkRoom?.roomCode !== jr.roomCode
+    && document.querySelector('.screen.active')?.id !== 'screen-game') {
+    joinHandled.add(jr.roomCode);
+    closeInviteModal();
+    pkEnterInvitedRoom(jr);
+  }
+  // 发给我的待回应邀请 → 弹窗；邀请中途失效 → 关窗提示
+  const incoming = st.invites[0] ?? null;
+  if (incoming && incoming.id !== shownInviteId && !jr) {
+    shownInviteId = incoming.id;
+    showInviteModal(incoming);
+  } else if (!incoming && shownInviteId) {
+    closeInviteModal();
+    showToast('邀请已失效');
+  }
+}
+
+/** 在线玩家列表（排除自己；空闲可邀 / 对局中只读） */
+function renderOnline(st: PresenceState): void {
+  const n = st.online.length;
+  const top = $('#pk-online');
+  if (top) top.textContent = `🟢 在线 ${n + 1} 人`;
+  const count = $('#pk-online-count');
+  if (count) count.textContent = `${n} 人`;
+  const list = $('#pk-online-list');
+  if (!list) return;
+  const sent = new Map<string, string>(); // toId -> invId（我发出的 pending）
+  for (const inv of st.myInvites) if (inv.state === 'pending') sent.set(inv.toId, inv.id);
+  if (!n) {
+    list.innerHTML = '<p class="lead small pk-rooms-empty">暂时没有其他玩家在线——把邀请链接发给好友，一起来场 PK！</p>';
+    return;
+  }
+  list.innerHTML = st.online.map((u) => {
+    const invId = sent.get(u.id) ?? '';
+    const action = u.busy
+      ? '<span class="pk-room-state playing">🔥 对局中</span>'
+      : invId
+        ? `<button type="button" class="btn btn-ghost btn-small pk-invite-cancel" data-inv="${escapeHtml(invId)}">等待回应… 撤销</button>`
+        : `<button type="button" class="btn btn-primary btn-small pk-invite-btn" data-to="${escapeHtml(u.id)}" data-name="${escapeHtml(u.name)}">邀请 PK</button>`;
+    return `<div class="pk-online-row"><span class="pk-ava">${avatarFor(u.id)}</span><span class="pk-online-name">${escapeHtml(u.name)}</span>${action}</div>`;
+  }).join('');
+}
+
+function showInviteModal(inv: PkInvite): void {
+  const modal = $('#invite-modal');
+  if (!modal) return;
+  $('#invite-title').textContent = `${inv.fromName} 邀请你 PK`;
+  const lv = LEVELS.find((l) => l.id === inv.level);
+  $('#invite-sub').textContent = `${lv ? `${lv.lv} ${lv.nameCn}` : '对战关卡'} · ${diffLabel(inv.difficulty)} —— 同关同时开跑，比拼真本事！`;
+  modal.classList.add('show');
+}
+function closeInviteModal(): void {
+  $('#invite-modal')?.classList.remove('show');
+  shownInviteId = '';
+}
+
+/** 回应邀请：同意 → 服务端建私密房，双方直接进 VS；拒绝 → 通知发起方 */
+async function respondInvite(accept: boolean): Promise<void> {
+  const invId = shownInviteId;
+  if (!invId) { closeInviteModal(); return; }
+  closeInviteModal();
+  try {
+    const room = await pkInviteRespond(invId, myId(), accept);
+    if (room) {
+      joinHandled.add(room.roomCode);
+      showToast('⚔️ 接受挑战，开战！');
+      pkEnterInvitedRoom(room);
+    } else {
+      showToast('已拒绝邀请');
+    }
+  } catch {
+    if (accept) showToast('回应失败，邀请可能已失效');
+  }
+}
+
+/** 发起 PK 邀请（目标须在线且空闲） */
+async function sendInviteTo(u: { id: string; name: string }): Promise<void> {
+  const levelId = pkLevelPick || pkLevelDef?.id || LEVELS[0]?.id || 'circus-run';
+  try {
+    await pkInvite(myId(), myName(), u.id, levelId, difficulty);
+    fastPollUntil = Date.now() + 65000; // 快速心跳直到邀请解决（TTL 60s）
+    showToast(`已向 ${u.name} 发出 PK 邀请，等 TA 回应…`);
+  } catch (e) {
+    const msg = String(e);
+    showToast(msg.includes('404') ? `${u.name} 已经离线了`
+      : msg.includes('409') ? '你或对方正在对局中，稍后再邀'
+      : '邀请发送失败，请检查网络');
+  }
+  void pollPresence();
+}
+async function cancelInviteTo(invId: string): Promise<void> {
+  await pkInviteCancel(invId, myId());
+  showToast('已撤销邀请');
+  void pollPresence();
+}
+
+/** 被邀请进房（同意邀请 / 我的邀请被接受）：直接进 VS 倒计时 */
+function pkEnterInvitedRoom(room: PkRoomState): void {
+  if (document.querySelector('.screen.active')?.id === 'screen-game') return; // 对局中不抢屏
+  const seq = ++pkSeq;
+  pkRoom = room;
+  pkLevelDef = LEVELS.find((l) => l.id === room.level) ?? LEVELS[0];
+  pkLevelPick = pkLevelDef?.id ?? '';
+  renderNick();
+  pkRenderLevelPick();
+  showScreen('screen-pk');
+  void pkVsCountdown(seq, room);
+}
+
+function startPresencePoll(): void {
+  if (presenceTimer) return;
+  void pollPresence();
+  let tick = 0;
+  presenceTimer = window.setInterval(() => {
+    const scr = document.querySelector('.screen.active')?.id;
+    if (scr !== 'screen-menu' && scr !== 'screen-pk') return;
+    tick++;
+    // 平时 5s 一次；发邀请后 1s 一次（拿房快，双方起跑不偏）
+    if (Date.now() < fastPollUntil || tick % 5 === 0) void pollPresence();
+  }, 1000);
+}
+
 /** PK 大厅：创建房间邀人 / 输码加入；带 ?pkroom= 的邀请链接自动填码加入 */
 function pkEnter(): void {
   cleanupPk();
   showScreen('screen-pk');
   pkShowPanel('idle');
-  const input = $<HTMLInputElement>('#pk-name');
-  if (!input.value) {
-    input.value = localStorage.getItem('wu.pkname') || `玩家${Math.floor(1000 + Math.random() * 9000)}`;
-  }
+  renderNick();
   pkLevelDef = pendingLevel ?? currentLevel;
   // 大厅：关卡选择器（首页入口进来时默认第一关，可改）+ 公开房间列表
   pkLevelPick = pkLevelDef?.id ?? '';
   pkRenderLevelPick();
   void pkRefreshRoomList();
   startPkListPoll();
-  void pkOnline().then((n) => {
-    $('#pk-online').textContent = `${n.rooms} 房 · ${n.players} 人在线`;
-  }).catch(() => {});
+  void pollPresence(); // 在线列表 + 邀请收发心跳
   const inviteCode = new URLSearchParams(location.search).get('pkroom');
   if (inviteCode) {
     $<HTMLInputElement>('#pk-code').value = inviteCode.toUpperCase();
@@ -1418,7 +1621,7 @@ async function pkVsCountdown(seq: number, room: PkRoomState): Promise<void> {
   pkOpp = room.opponent;
   const def = pkLevelDef ?? LEVELS.find((l) => l.id === room.level) ?? LEVELS[0];
   pkLevelDef = def;
-  $('#pk-me-name').textContent = $<HTMLInputElement>('#pk-name').value.trim() || '我';
+  $('#pk-me-name').textContent = myName();
   $('#pk-opp-name').textContent = room.opponent?.name ?? '对手';
   $('#pk-opp-tag').textContent = 'LIVE';
   $('#pk-map-info').textContent = `本局地图：${def.lv} · ${def.nameCn} · ${diffLabel(room.difficulty)}`;
@@ -2475,6 +2678,33 @@ function setupMenu(): void {
     cleanupPk();
     pkShowPanel('idle');
     showScreen(pendingLevel ? 'screen-prepare' : 'screen-menu');
+  });
+  // 昵称（右上角 chip → 自绘弹层）+ 在线邀请收发
+  // 旧版 PK 昵称一次性迁移为全局昵称
+  if (!localStorage.getItem('wu.lbName') && localStorage.getItem('wu.pkname')) {
+    localStorage.setItem('wu.lbName', localStorage.getItem('wu.pkname')!);
+  }
+  renderNick();
+  startPresencePoll();
+  document.querySelectorAll<HTMLElement>('.nick-chip').forEach((el) => {
+    el.addEventListener('click', openNickModal);
+  });
+  $<HTMLButtonElement>('#btn-nick-save').addEventListener('click', saveNick);
+  $<HTMLButtonElement>('#btn-nick-cancel').addEventListener('click', closeNickModal);
+  $<HTMLInputElement>('#nick-input').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') saveNick();
+    if (e.key === 'Escape') closeNickModal();
+  });
+  $<HTMLButtonElement>('#btn-invite-accept').addEventListener('click', () => void respondInvite(true));
+  $<HTMLButtonElement>('#btn-invite-reject').addEventListener('click', () => void respondInvite(false));
+  $('#pk-online-list')?.addEventListener('click', (e) => {
+    const btn = e.target instanceof Element ? e.target.closest('button') : null;
+    if (!btn) return;
+    if (btn.classList.contains('pk-invite-btn')) {
+      void sendInviteTo({ id: btn.dataset.to ?? '', name: btn.dataset.name ?? '玩家' });
+    } else if (btn.classList.contains('pk-invite-cancel')) {
+      void cancelInviteTo(btn.dataset.inv ?? '');
+    }
   });
   $('#btn-settings-jump').addEventListener('click', () => {
     settingsFrom = 'screen-prepare';

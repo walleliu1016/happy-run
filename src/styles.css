@@ -1818,3 +1818,56 @@ body.force-landscape #app {
   50% { filter: brightness(1.45); }
   100% { filter: brightness(1); }
 }
+
+/* ===== 昵称 chip + 昵称/邀请弹层 + 在线玩家（v1 风格内增量） ===== */
+.nick-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  max-width: 160px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+  border: none; cursor: pointer; font-family: var(--font); flex: none;
+  font-size: clamp(12px, 1.05vw, 16px); font-weight: 700;
+  padding: 8px 16px; border-radius: 999px;
+  color: var(--blue); background: var(--blue-soft);
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+.nick-chip:hover, .nick-chip:focus-visible {
+  transform: translateY(-2px); box-shadow: 0 8px 20px rgba(0, 113, 227, 0.25);
+}
+.nick-chip:active { transform: scale(0.96); }
+.pk-nick-row {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; margin: 4px 0 2px;
+}
+
+/* 自绘弹层（同 calib-overlay 模式：随 #app 旋转，APK 兜底横排可用） */
+.nick-overlay {
+  position: fixed; inset: 0; z-index: 70; display: none;
+  align-items: center; justify-content: center;
+  background: rgba(10, 10, 20, 0.55); backdrop-filter: blur(8px);
+}
+.nick-overlay.show { display: flex; }
+.nick-modal {
+  max-width: 460px; width: calc(100% - 48px);
+  text-align: center; padding: clamp(22px, 2.6vw, 38px);
+}
+.nick-input { width: 100%; margin: 16px 0 6px; text-align: center; }
+.invite-icon { font-size: clamp(38px, 5vw, 56px); margin-bottom: 6px; }
+
+/* 在线玩家列表（贴 pk-room-row 视觉） */
+.pk-online-count {
+  font-size: 13px; font-weight: 700; color: var(--ink-2);
+  font-variant-numeric: tabular-nums; margin-left: 8px;
+}
+.pk-online-list { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; }
+.pk-online-row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 14px; border-radius: 16px;
+  background: #f5f5f7; border: 1px solid rgba(0, 0, 0, 0.06);
+}
+.pk-ava { font-size: 26px; flex: none; }
+.pk-online-name {
+  flex: 1; min-width: 0; font-weight: 800; font-size: 15px;
+  overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+}
+@media (max-width: 720px) {
+  .nick-chip { padding: 7px 12px; max-width: 120px; }
+}

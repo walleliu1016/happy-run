@@ -48,6 +48,7 @@
           <div class="brand"><span class="brand-dot"></span>WarmingUp 律动跑酷</div>
         </div>
         <div class="topbar-right">
+          <button class="nick-chip" title="我的昵称，点击修改">👤 设置昵称</button>
           <button class="rank-chip" id="rank-chip" title="段位：累计实力，不受星星消费影响">🥉 青铜·起步</button>
           <button class="star-chip" id="star-chip" title="星星：每局都赚，用来解锁装扮">⭐ <b id="star-count">0</b></button>
           <button class="btn btn-ghost btn-small" id="btn-settings">⚙️ 设置</button>
@@ -95,14 +96,19 @@
           <div class="brand"><span class="brand-dot"></span>⚡ PK 对战</div>
         </div>
         <div class="topbar-sub" id="pk-online">在线 0 人</div>
+        <div class="topbar-right">
+          <button class="nick-chip" title="我的昵称，点击修改">👤 设置昵称</button>
+        </div>
       </header>
       <div class="prepare-wrap">
         <div class="card pk-card" id="pk-idle">
           <div class="pk-hero">⚡</div>
           <h2>竞技 PK · 房间对战</h2>
           <p class="lead small">创建房间，把二维码或链接发给好友——<br>两人同关同时开跑，界面分屏各占一半舞台，实时比拼！</p>
-          <label class="opt-label" for="pk-name">我的昵称</label>
-          <input id="pk-name" class="pk-name-input" maxlength="12" placeholder="输入昵称" autocomplete="off">
+          <div class="pk-nick-row">
+            <span class="opt-label">我的昵称</span>
+            <button type="button" class="nick-chip" title="点击修改昵称">👤 设置昵称</button>
+          </div>
           <label class="opt-label" for="pk-level">对战关卡（同图对决）</label>
           <div class="pk-level-picker">
             <button type="button" id="pk-level" class="pk-name-input pk-select"
@@ -118,6 +124,13 @@
             <button class="btn btn-ghost" id="btn-pk-join">加入房间</button>
           </div>
           <p class="lead small pk-hint">好友发来邀请链接？打开链接会自动填入房间码加入。</p>
+          <div class="pk-rooms-head">
+            <b>🟢 在线玩家</b>
+            <span class="pk-online-count" id="pk-online-count">0 人</span>
+          </div>
+          <div class="pk-online-list" id="pk-online-list">
+            <p class="lead small pk-rooms-empty">正在获取在线玩家…</p>
+          </div>
           <div class="pk-rooms-head">
             <b>公开房间</b>
             <button class="btn btn-ghost btn-small" id="btn-pk-refresh">↻ 刷新</button>
@@ -590,6 +603,30 @@
         <div class="calib-status" id="calib-status">准备…</div>
         <div class="btn-row center">
           <button class="btn btn-ghost btn-small" id="calib-close">完成/关闭</button>
+        </div>
+      </div>
+    </div>
+    <!-- 昵称设置弹层（自绘：APK 兜底横排随 #app 旋转，禁用原生 prompt） -->
+    <div class="nick-overlay" id="nick-modal">
+      <div class="card nick-modal">
+        <h3>设置昵称</h3>
+        <p class="lead small">PK 对战、排行榜、在线列表都用这个名字</p>
+        <input id="nick-input" class="pk-name-input nick-input" maxlength="12" placeholder="输入昵称（最多 12 字）" autocomplete="off">
+        <div class="btn-row center">
+          <button class="btn btn-primary" id="btn-nick-save">保存</button>
+          <button class="btn btn-ghost" id="btn-nick-cancel">取消</button>
+        </div>
+      </div>
+    </div>
+    <!-- PK 邀请弹层（收到点对点邀请时弹出，可同意/拒绝） -->
+    <div class="nick-overlay" id="invite-modal">
+      <div class="card nick-modal">
+        <div class="invite-icon">⚔️</div>
+        <h3 id="invite-title">有人向你发起 PK</h3>
+        <p class="lead small" id="invite-sub">同关同时开跑，比拼真本事！</p>
+        <div class="btn-row center">
+          <button class="btn btn-primary" id="btn-invite-accept">接受挑战</button>
+          <button class="btn btn-ghost" id="btn-invite-reject">拒绝</button>
         </div>
       </div>
     </div>

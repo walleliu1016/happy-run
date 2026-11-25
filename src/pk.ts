@@ -117,6 +117,69 @@ export async function pkLeave(m: { playerId: string; roomCode: string } | null):
   try { await api('leave', { playerId: m.playerId, roomCode: m.roomCode }); } catch { /* 忽略 */ }
 }
 
+// ---------- 在线玩家 + 点对点 PK 邀请（/api/pk/presence 系列） ----------
+/** 在线玩家（列表排除自己；busy = 已在房间/对局中） */
+export interface PresenceUser {
+  id: string;
+  name: string;
+  busy: string;
+}
+
+export interface PkInvite {
+  id: string;
+  fromId: string;
+  fromName: string;
+  toId: string;
+  toName: string;
+  level: string;
+  difficulty: string;
+  /** pending | accepted | rejected | cancelled | expired */
+  state: string;
+  ts: number;
+}
+
+export interface PresenceState {
+  online: PresenceUser[];
+  /** 发给我的待回应邀请 */
+  invites: PkInvite[];
+  /** 我发出的邀请（含结果，用于反馈「已被接受/拒绝」） */
+  myInvites: PkInvite[];
+  /** 我该进入的房间（我发的邀请被接受，或我同意的邀请已建房） */
+  joinRoom: PkRoomState | null;
+}
+
+/** 心跳：注册在线 + 拉取在线列表/邀请/被接受的房间 */
+export async function pkPresence(playerId: string, name: string): Promise<PresenceState> {
+  const r = await api('presence', { playerId, name });
+  return {
+    online: r.online ?? [],
+    invites: r.invites ?? [],
+    myInvites: r.myInvites ?? [],
+    joinRoom: r.joinRoom ? toState(r.joinRoom.playerId, r.joinRoom) : null,
+  };
+}
+
+/** 发起 PK 邀请（目标须在线且空闲） */
+export async function pkInvite(
+  fromId: string, fromName: string, toId: string, level: string, difficulty: string,
+): Promise<PkInvite> {
+  return api('invite', { fromId, fromName, toId, level, difficulty });
+}
+
+/** 回应邀请：接受时返回房间视图（形状同加入房间），直接进 VS 开跑；拒绝返回 null */
+export async function pkInviteRespond(
+  inviteId: string, playerId: string, accept: boolean,
+): Promise<PkRoomState | null> {
+  const r = await api('invite-respond', { inviteId, playerId, accept });
+  if (!r.accepted) return null;
+  return toState(r.playerId, r);
+}
+
+/** 撤销发出的邀请 */
+export async function pkInviteCancel(inviteId: string, playerId: string): Promise<void> {
+  try { await api('invite-cancel', { inviteId, playerId }); } catch { /* 忽略 */ }
+}
+
 // ---------- 全服排行榜（/api/lb/*） ----------
 export interface LbEntry {
   rank: number;

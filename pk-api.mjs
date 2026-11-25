@@ -28,6 +28,31 @@ const rooms = new Map();
 const playerRoom = new Map(); // playerId -> roomCode
 const ROOM_TTL_MS = 30 * 60 * 1000;
 
+// 在线状态 + 点对点 PK 邀请（内存态）：
+// presence: Map<playerId, {id, name, ts}>  45s 无心跳视为离线
+// invites:  Map<inviteId, {id, fromId, fromName, toId, level, difficulty, state, ts, respondAt, roomCode}>
+//   state: pending | accepted | rejected | cancelled | expired
+const presence = new Map();
+const invites = new Map();
+const PRESENCE_TTL_MS = 45 * 1000;
+const INVITE_TTL_MS = 60 * 1000;
+
+function presenceClean() {
+  const now = Date.now();
+  for (const [id, p] of presence) if (now - p.ts > PRESENCE_TTL_MS) presence.delete(id);
+  for (const inv of invites.values()) {
+    if (inv.state === 'pending' && now - inv.ts > INVITE_TTL_MS) inv.state = 'expired';
+    if (inv.state !== 'pending' && now - (inv.respondAt || inv.ts) > 2 * 60 * 1000) invites.delete(inv.id);
+  }
+}
+
+function inviteView(inv) {
+  return {
+    id: inv.id, fromId: inv.fromId, fromName: inv.fromName, toId: inv.toId, toName: inv.toName || '',
+    level: inv.level, difficulty: inv.difficulty, state: inv.state, ts: inv.ts,
+  };
+}
+
 function roomCleanup() {
   const now = Date.now();
   for (const [code, r] of rooms) {
@@ -107,9 +132,117 @@ export async function handlePkApi(req, res) {
   };
   try {
     roomCleanup();
+    presenceClean();
 
     if (url.pathname === '/api/pk/online' && req.method === 'GET') {
       send(200, { rooms: rooms.size, players: playerRoom.size });
+      return true;
+    }
+
+    // 在线心跳：注册/续期 + 拉取在线列表 / 发给我的邀请 / 我发出的邀请结果 / 被接受的房间
+    if (url.pathname === '/api/pk/presence' && req.method === 'POST') {
+      const body = await readBody(req);
+      const meId = String(body.playerId || '').slice(0, 40);
+      const name = String(body.name || '').replace(/[<>"'`&]/g, '').trim().slice(0, 12) || '匿名玩家';
+      if (!meId) { send(400, { error: 'no id' }); return true; }
+      presence.set(meId, { id: meId, name, ts: Date.now() });
+      const online = [...presence.values()]
+        .filter((p) => p.id !== meId)
+        .map((p) => ({ id: p.id, name: p.name, busy: playerRoom.has(p.id) ? 'busy' : '' }));
+      const mine = [...invites.values()]
+        .filter((i) => i.fromId === meId || i.toId === meId)
+        .sort((a, b) => b.ts - a.ts);
+      // 被接受的邀请：双方各自拿到房间视图（形状同 room-join 响应），进房即 VS 开跑
+      let joinRoom = null;
+      const accepted = mine.find((i) => i.state === 'accepted' && i.roomCode);
+      if (accepted) {
+        const room = rooms.get(accepted.roomCode);
+        if (room && room.players.some((p) => p.id === meId)) joinRoom = { playerId: meId, ...roomView(room, meId) };
+      }
+      send(200, {
+        online,
+        invites: mine.filter((i) => i.toId === meId && i.state === 'pending').map(inviteView),
+        myInvites: mine.filter((i) => i.fromId === meId).slice(0, 3).map(inviteView),
+        joinRoom,
+      });
+      return true;
+    }
+
+    // 发起 PK 邀请：目标须在线且空闲；自己有 pending 先自动撤销
+    if (url.pathname === '/api/pk/invite' && req.method === 'POST') {
+      const body = await readBody(req);
+      const fromId = String(body.fromId || '').slice(0, 40);
+      const toId = String(body.toId || '').slice(0, 40);
+      const fromName = String(body.fromName || '').replace(/[<>"'`&]/g, '').trim().slice(0, 12) || '匿名玩家';
+      if (!fromId || !toId || fromId === toId) { send(400, { error: 'bad id' }); return true; }
+      const target = presence.get(toId);
+      if (!target) { send(404, { error: 'offline' }); return true; }
+      if (playerRoom.has(toId) || playerRoom.has(fromId)) { send(409, { error: 'busy' }); return true; }
+      for (const inv of invites.values()) {
+        if (inv.fromId === fromId && inv.state === 'pending') inv.state = 'cancelled';
+      }
+      const inv = {
+        id: randomUUID(), fromId, fromName, toId, toName: target.name,
+        level: String(body.level || 'circus-run').slice(0, 40),
+        difficulty: String(body.difficulty || 'normal').slice(0, 10),
+        state: 'pending', ts: Date.now(), respondAt: 0, roomCode: '',
+      };
+      invites.set(inv.id, inv);
+      send(200, inviteView(inv));
+      return true;
+    }
+
+    // 回应邀请：同意 → 自动建房（私密）双方入房即开；拒绝 → 通知发起方
+    if (url.pathname === '/api/pk/invite-respond' && req.method === 'POST') {
+      const body = await readBody(req);
+      const inv = invites.get(String(body.inviteId || ''));
+      const meId = String(body.playerId || '').slice(0, 40);
+      if (!inv || inv.toId !== meId || inv.state !== 'pending') { send(404, { error: 'gone' }); return true; }
+      inv.respondAt = Date.now();
+      if (!body.accept) {
+        inv.state = 'rejected';
+        send(200, { accepted: false });
+        return true;
+      }
+      const from = presence.get(inv.fromId);
+      const to = presence.get(meId);
+      if (!from || playerRoom.has(inv.fromId) || playerRoom.has(meId)) {
+        inv.state = 'expired';
+        send(409, { error: 'busy' });
+        return true;
+      }
+      let code = genCode();
+      while (rooms.has(code)) code = genCode();
+      const room = {
+        code,
+        level: inv.level,
+        difficulty: inv.difficulty,
+        public: false, // 邀请房私密，不出现在大厅
+        seed: 0,
+        state: 'waiting',
+        startAt: 0,
+        createdAt: Date.now(),
+        players: [makePlayer(inv.fromId, from.name), makePlayer(meId, to.name)],
+      };
+      rooms.set(code, room);
+      playerRoom.set(inv.fromId, code);
+      playerRoom.set(meId, code);
+      resetDuel(room); // state='playing' + startAt=+4s + 新谱面 seed
+      inv.state = 'accepted';
+      inv.roomCode = code;
+      send(200, { accepted: true, playerId: meId, ...roomView(room, meId) });
+      return true;
+    }
+
+    // 撤销邀请（发起方）
+    if (url.pathname === '/api/pk/invite-cancel' && req.method === 'POST') {
+      const body = await readBody(req);
+      const inv = invites.get(String(body.inviteId || ''));
+      if (inv && inv.fromId === String(body.playerId || '') && inv.state === 'pending') {
+        inv.state = 'cancelled';
+        inv.respondAt = Date.now();
+      }
+      send(200, { ok: true });
       return true;
     }
 
