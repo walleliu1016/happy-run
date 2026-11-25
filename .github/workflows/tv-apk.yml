@@ -46,13 +46,27 @@ jobs:
         working-directory: tv-app
         run: gradle :app:assembleRelease --no-daemon
 
+      - name: Read version
+        id: ver
+        run: |
+          VN=$(grep -oP 'versionName = "\K[^"]+' tv-app/app/build.gradle.kts)
+          echo "name=$VN" >> "$GITHUB_OUTPUT"
+
       - name: Publish to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: tv-apk
-          name: TV APK
+          name: TV APK ${{ steps.ver.outputs.name }}
+          make_latest: true
           files: tv-app/app/build/outputs/apk/release/app-release.apk
           body: |
-            律动跑酷 TV 版（WebView 壳，游戏加载线上地址，更新无需重装）。
-            安装：U 盘拷到电视「文件管理器」安装，或 adb install app-release.apk。
-            详细步骤见仓库 tv-app/README.md。
+            律动跑酷 TV 版 v${{ steps.ver.outputs.name }}（WebView 壳，游戏加载线上地址，更新无需重装）。
+
+            ## 下载
+            - `app-release.apk`：U 盘拷到电视「文件管理器」安装，或 `adb install app-release.apk`
+            - 详细安装/遥控器操作步骤见仓库 `tv-app/README.md`
+
+            ## 本版内容
+            - TV 遥控按键全兼容（老键名/纯 keyCode/新 Arrow* 三路），老盒子方向键复活
+            - WebView requestFocus 保活 + DPAD/OK 显式转发，焦点不再被吃
+            - 游戏 URL 缓存戳升级，电视端自动拉新版
