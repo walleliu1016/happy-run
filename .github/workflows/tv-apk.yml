@@ -52,11 +52,13 @@ jobs:
           VN=$(grep -oP 'versionName = "\K[^"]+' tv-app/app/build.gradle.kts)
           echo "name=$VN" >> "$GITHUB_OUTPUT"
 
+      # 每个版本一个 Release：tag = v<versionName>，下载地址跟版本走。
+      # 最新版直链（自动指向最新 Release）：releases/latest/download/app-release.apk
       - name: Publish to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: tv-apk
-          name: TV APK ${{ steps.ver.outputs.name }}
+          tag_name: v${{ steps.ver.outputs.name }}
+          name: TV APK v${{ steps.ver.outputs.name }}
           make_latest: true
           files: tv-app/app/build/outputs/apk/release/app-release.apk
           body: |
@@ -64,9 +66,13 @@ jobs:
 
             ## 下载
             - `app-release.apk`：U 盘拷到电视「文件管理器」安装，或 `adb install app-release.apk`
+            - 历史版本在 Releases 页按版本挑选
             - 详细安装/遥控器操作步骤见仓库 `tv-app/README.md`
 
-            ## 本版内容
-            - TV 遥控按键全兼容（老键名/纯 keyCode/新 Arrow* 三路），老盒子方向键复活
-            - WebView requestFocus 保活 + DPAD/OK 显式转发，焦点不再被吃
-            - 游戏 URL 缓存戳升级，电视端自动拉新版
+            更新内容见 tag 对应的提交历史。
+
+      # 迁移清理：删掉旧的滚动发布 tag `tv-apk`（Release 版本化后无用）。幂等，不存在即跳过。
+      - name: Retire legacy rolling release (tv-apk)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release delete tv-apk --yes --cleanup-tag 2>/dev/null || true

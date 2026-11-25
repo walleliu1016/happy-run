@@ -10,7 +10,7 @@
 ## 安装到电视（以索尼 BRAVIA 为例）
 
 **方式一：U 盘（最简单）**
-1. 从 [Releases · tv-apk](https://github.com/walleliu1016/happy-run/releases/tag/tv-apk) 下载 `app-release.apk`，拷进 U 盘
+1. 下载 `app-release.apk`（[最新版直链](https://github.com/walleliu1016/happy-run/releases/latest/download/app-release.apk)；历史版本见 [Releases](https://github.com/walleliu1016/happy-run/releases)，每个版本一个 Release），拷进 U 盘
 2. U 盘插电视 → 电视「文件管理器 / Media Player」里找到 APK → 安装
 3. 若提示禁止安装：`设置 → 应用 → 安全和限制（安全）→ 未知来源` 打开（允许该安装器）
 4. 装完在电视桌面「应用」里找到「律动跑酷」（有横幅卡片）
@@ -35,7 +35,7 @@ adb install app-release.apk
 
 ## 构建
 
-**CI（推荐）**：推送/改动 `tv-app/**` 自动出包并挂到 Release（tag `tv-apk`）。
+**CI（推荐）**：推送/改动 `tv-app/**` 自动出包并挂到 Release（tag `v<版本号>`，如 `v1.2`，每个版本一个 Release）。
 
 **本地**：需要 JDK 17 + Android SDK（API 34）+ Gradle 8.9：
 ```bash
