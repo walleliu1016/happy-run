@@ -298,96 +298,124 @@
         <div class="topbar-sub">⚙️ 设置</div>
       </header>
       <div class="menu-wrap settings-wrap">
-        <section class="mstep">
-          <h2 class="sec-title">📷 动作怎么识别</h2>
-          <h3 class="h2">识别器用哪个？</h3>
-          <div class="mode-cards src-cards">
-            <button class="mode-card selected" data-source="direct">
-              <div class="mode-icon">📷</div>
-              <div class="mode-name">本机摄像头</div>
-              <div class="mode-desc">摄像头在本设备上<br/>（电脑 / 电视直连 USB 摄像头 / 手机镜像玩法）</div>
+        <div class="set-wrap">
+          <div class="set-sec">动作识别</div>
+          <div class="set-group">
+            <button type="button" class="set-row set-src-row selected" data-source="direct">
+              <span class="set-ic">📷</span>
+              <span class="set-txt">
+                <b>本机摄像头</b>
+                <small>摄像头在本设备上：电脑、电视直连 USB 摄像头、手机镜像玩法</small>
+              </span>
+              <span class="set-check">✓</span>
             </button>
-            <button class="mode-card" data-source="phone">
-              <div class="mode-icon">📱</div>
-              <div class="mode-name">手机当识别器</div>
-              <div class="mode-desc">手机扫码，对着人拍<br/>电视只管显示画面</div>
+            <button type="button" class="set-row set-src-row" data-source="phone">
+              <span class="set-ic">📱</span>
+              <span class="set-txt">
+                <b>手机当识别器</b>
+                <small>手机扫码对着人拍，电视只管显示画面</small>
+              </span>
+              <span class="set-check">✓</span>
             </button>
-            <button class="mode-card" data-source="pad">
-              <div class="mode-icon">🎮</div>
-              <div class="mode-name">手柄 · 键盘</div>
-              <div class="mode-desc">免摄像头免手机，Joy-Con 蓝牙直连即玩<br/>A跳 B踩 X挥 Y蹲 · 摇杆/十字键移动<br/><span id="pad-status" class="pad-status">未连接 · 蓝牙配对后自动识别</span></div>
+            <button type="button" class="set-row set-src-row" data-source="pad">
+              <span class="set-ic">🎮</span>
+              <span class="set-txt">
+                <b>手柄 · 键盘</b>
+                <small>A跳 B踩 X挥 Y蹲 · 摇杆/十字键移动 · <span id="pad-status" class="pad-status">未连接 · 蓝牙配对后自动识别</span></small>
+              </span>
+              <span class="set-check">✓</span>
             </button>
-          </div>
-          <div class="card side-card" id="pair-card" hidden>
-            <h3>手机配对</h3>
-            <p class="lead small">用手机浏览器扫这个码（或手动输入网址），保持和电视同一 WiFi。</p>
-            <canvas id="qr-canvas" width="220" height="220"></canvas>
-            <div class="pair-url" id="pair-url">…</div>
-            <div class="pair-status" id="pair-status">等待手机连接…</div>
-          </div>
-          <div class="btn-row">
-            <button class="btn btn-ghost" id="btn-cast">📺 投屏到电视</button>
-            <button class="btn btn-ghost" id="btn-back-check">🔧 设备体检</button>
-          </div>
-        </section>
-        <section class="mstep">
-          <h2 class="sec-title">🎨 主题装扮</h2>
-          <p class="lead small">换背景、换领操员——喜欢的动画片场景和人物都能搬进热身场。玩局赚 ⭐ 可在「我的档案」解锁新装扮。</p>
-          <input type="file" id="bg-file" accept="image/*" hidden />
-          <input type="file" id="skin-file" accept="image/*" hidden />
-          <div class="look-row">
-            <div class="look-label">背景</div>
-            <div class="look-chips">
-              <button class="look-chip selected" data-bg="neon">🏜 霓虹峡谷</button>
-              <button class="look-chip" data-bg="space">🌌 星际漫游</button>
-              <button class="look-chip" data-bg="candy">🍬 糖果甜心</button>
-              <button class="look-chip" data-bg="forest">🌿 绿野仙踪</button>
-              <button class="look-chip" data-bg="custom">🖼 自定义图片</button>
+            <div class="card side-card set-subcard" id="pair-card" hidden>
+              <h3>手机配对</h3>
+              <p class="lead small">用手机浏览器扫这个码（或手动输入网址），保持和电视同一 WiFi。</p>
+              <canvas id="qr-canvas" width="220" height="220"></canvas>
+              <div class="pair-url" id="pair-url">…</div>
+              <div class="pair-status" id="pair-status">等待手机连接…</div>
+            </div>
+            <div class="set-row set-row-btns">
+              <button class="btn btn-ghost btn-small" id="btn-cast">📺 投屏到电视</button>
+              <button class="btn btn-ghost btn-small" id="btn-back-check">🔧 设备体检</button>
             </div>
           </div>
-          <div class="look-row">
-            <div class="look-label">领操员</div>
-            <div class="look-chips">
-              <button class="look-chip selected" data-skin="mage">🧙 魔法师</button>
-              <button class="look-chip" data-skin="flame">🔥 烈焰勇士</button>
-              <button class="look-chip" data-skin="frost">❄️ 冰雪精灵</button>
-              <button class="look-chip" data-skin="nature">🌱 自然之灵</button>
-              <button class="look-chip" data-skin="candy">🎀 糖果甜心</button>
-              <button class="look-chip" data-skin="gold">⭐ 黄金战士</button>
-              <button class="look-chip" data-skin="custom">🖼 自定义人物</button>
+
+          <div class="set-sec">主题装扮</div>
+          <div class="set-group">
+            <input type="file" id="bg-file" accept="image/*" hidden />
+            <input type="file" id="skin-file" accept="image/*" hidden />
+            <div class="set-row set-row-stack">
+              <div class="set-row-head">
+                <span class="set-ic">🏜</span>
+                <span class="set-txt">
+                  <b>背景</b>
+                  <small>喜欢的动画片场景也能搬进热身场</small>
+                </span>
+              </div>
+              <div class="look-chips">
+                <button class="look-chip selected" data-bg="neon">🏜 霓虹峡谷</button>
+                <button class="look-chip" data-bg="space">🌌 星际漫游</button>
+                <button class="look-chip" data-bg="candy">🍬 糖果甜心</button>
+                <button class="look-chip" data-bg="forest">🌿 绿野仙踪</button>
+                <button class="look-chip" data-bg="custom">🖼 自定义图片</button>
+              </div>
+            </div>
+            <div class="set-row set-row-stack">
+              <div class="set-row-head">
+                <span class="set-ic">🧙</span>
+                <span class="set-txt">
+                  <b>领操员</b>
+                  <small>自定义人物会替代 3D 教练，动作口令和时间轴照常提示</small>
+                </span>
+              </div>
+              <div class="look-chips">
+                <button class="look-chip selected" data-skin="mage">🧙 魔法师</button>
+                <button class="look-chip" data-skin="flame">🔥 烈焰勇士</button>
+                <button class="look-chip" data-skin="frost">❄️ 冰雪精灵</button>
+                <button class="look-chip" data-skin="nature">🌱 自然之灵</button>
+                <button class="look-chip" data-skin="candy">🎀 糖果甜心</button>
+                <button class="look-chip" data-skin="gold">⭐ 黄金战士</button>
+                <button class="look-chip" data-skin="custom">🖼 自定义人物</button>
+              </div>
+            </div>
+            <div class="set-row set-row-btns">
+              <button class="btn btn-ghost btn-small" id="btn-look-reset">恢复默认装扮</button>
+              <span class="set-note">装扮自动记住，下次打开还在；自定义图片只存本机浏览器</span>
             </div>
           </div>
-          <div class="btn-row music-btns">
-            <button class="btn btn-ghost btn-small" id="btn-look-reset">恢复默认装扮</button>
-          </div>
-          <p class="tip">装扮自动记住，下次打开还在；自定义图片只存本机浏览器。自定义人物会替代 3D 教练，动作口令和时间轴照常提示。</p>
-        </section>
-        <section class="mstep">
-          <h2 class="sec-title">⏱ 校准与帮助</h2>
-          <h3 class="h2">判定校准</h3>
-          <p class="lead small">总判定偏早/偏晚？拖动补偿，或跟节拍自动测一次。摄像头识别偏晚 → 往右调（正值提前判定）。</p>
-          <div class="calib-row">
-            <input type="range" id="calib-range" min="-300" max="300" step="10" value="0" />
-            <span class="calib-val" id="calib-val">+0ms</span>
-          </div>
-          <div class="btn-row music-btns">
-            <button class="btn btn-ghost btn-small" id="btn-calib">跟节拍自动校准</button>
-          </div>
-          <details class="card side-card tool-card">
-            <summary>📋 动作清单</summary>
-            <div class="tool-body">
-            <ul class="action-list">
-              <li><b>跳</b> —— 高障碍，双脚离地</li>
-              <li><b>蹲</b> —— 低横杆，屈膝下压</li>
-              <li><b>挥臂</b> —— 击打鼓点，手过肩</li>
-              <li><b>踩踏</b> —— 节拍踏点，抬腿跺地</li>
-              <li><b>原地跑</b> —— 加速段，摆臂小跑</li>
-              <li><b>左移/右移</b> —— 闪避选边，身体侧移</li>
-            </ul>
-            <p class="tip">提示：站在电视前 2–3 米，全身进画面，光线别太暗。</p>
+
+          <div class="set-sec">判定与帮助</div>
+          <div class="set-group">
+            <div class="set-row set-row-stack">
+              <div class="set-row-head">
+                <span class="set-ic">⏱</span>
+                <span class="set-txt">
+                  <b>判定校准</b>
+                  <small>总判定偏早/偏晚就拖动补偿；摄像头识别偏晚 → 往右调（正值提前判定）</small>
+                </span>
+                <span class="calib-val" id="calib-val">+0ms</span>
+              </div>
+              <div class="calib-row">
+                <input type="range" id="calib-range" min="-300" max="300" step="10" value="0" />
+              </div>
             </div>
-          </details>
-        </section>
+            <div class="set-row set-row-btns">
+              <button class="btn btn-ghost btn-small" id="btn-calib">跟节拍自动校准</button>
+            </div>
+            <details class="tool-card set-details">
+              <summary>📋 动作清单</summary>
+              <div class="tool-body">
+                <ul class="action-list">
+                  <li><b>跳</b> —— 高障碍，双脚离地</li>
+                  <li><b>蹲</b> —— 低横杆，屈膝下压</li>
+                  <li><b>挥臂</b> —— 击打鼓点，手过肩</li>
+                  <li><b>踩踏</b> —— 节拍踏点，抬腿跺地</li>
+                  <li><b>原地跑</b> —— 加速段，摆臂小跑</li>
+                  <li><b>左移/右移</b> —— 闪避选边，身体侧移</li>
+                </ul>
+                <p class="tip">提示：站在电视前 2–3 米，全身进画面，光线别太暗。</p>
+              </div>
+            </details>
+          </div>
+        </div>
       </div>
     </section>
 
@@ -450,38 +478,30 @@
         <div class="topbar-sub">⭐ <b id="star-count-2">0</b></div>
       </header>
       <div class="profile-wrap">
-        <div class="profile-grid">
-          <div class="card pf-card pf-rank-card">
-            <h3>🎯 我的段位</h3>
-            <div class="pf-rank" id="pf-rank"></div>
-          </div>
-          <div class="card pf-card">
-            <h3>📊 生涯统计</h3>
-            <div class="pf-stats" id="pf-stats"></div>
-          </div>
-          <div class="card pf-card">
-            <h3>📅 打卡日历</h3>
-            <div id="pf-cal"></div>
-            <div class="pf-streak" id="pf-streak"></div>
-          </div>
-          <div class="card pf-card">
-            <h3>🏆 成就墙</h3>
-            <div class="ach-grid" id="pf-ach"></div>
-          </div>
-          <div class="card pf-card">
-            <h3>👗 装扮商店</h3>
-            <p class="tip">玩局赚 ⭐，解锁新背景和新领操员。</p>
-            <div class="shop-grid" id="pf-shop"></div>
-          </div>
-          <div class="card pf-card pf-lb-card">
-            <h3>🌍 全服排行榜</h3>
-            <div class="lb-chips" id="lb-chips"></div>
-            <div class="lb-name-row">
-              <input id="lb-name" class="pk-name-input" maxlength="12" placeholder="上榜昵称（默认匿名玩家）" autocomplete="off">
-              <button class="btn btn-ghost btn-small" id="lb-name-save">保存</button>
-            </div>
-            <div class="lb-list" id="lb-list"></div>
-          </div>
+        <div class="pf-hero" id="pf-hero"></div>
+        <div class="set-sec">📊 生涯统计</div>
+        <div class="set-group pf-group">
+          <div class="pf-stats" id="pf-stats"></div>
+        </div>
+        <div class="set-sec">📅 打卡日历</div>
+        <div class="set-group pf-group">
+          <div id="pf-cal"></div>
+          <div class="pf-streak" id="pf-streak"></div>
+        </div>
+        <div class="set-sec">🏆 成就墙</div>
+        <div class="set-group pf-group">
+          <div class="ach-grid" id="pf-ach"></div>
+        </div>
+        <div class="set-sec">👗 装扮商店</div>
+        <div class="set-group pf-group">
+          <p class="tip">玩局赚 ⭐，解锁新背景和新领操员。</p>
+          <div class="shop-grid" id="pf-shop"></div>
+        </div>
+        <div class="set-sec">🌍 全服排行榜</div>
+        <div class="set-group pf-group">
+          <div class="lb-chips" id="lb-chips"></div>
+          <div class="lb-list" id="lb-list"></div>
+          <p class="tip">上榜昵称就是右上角的昵称，点昵称随时改。</p>
         </div>
       </div>
     </section>
@@ -609,8 +629,8 @@
     <!-- 昵称设置弹层（自绘：APK 兜底横排随 #app 旋转，禁用原生 prompt） -->
     <div class="nick-overlay" id="nick-modal">
       <div class="card nick-modal">
-        <h3>设置昵称</h3>
-        <p class="lead small">PK 对战、排行榜、在线列表都用这个名字</p>
+        <h3 id="nick-title">设置昵称</h3>
+        <p class="lead small" id="nick-sub">PK 对战、排行榜、在线列表都用这个名字</p>
         <input id="nick-input" class="pk-name-input nick-input" maxlength="12" placeholder="输入昵称（最多 12 字）" autocomplete="off">
         <div class="btn-row center">
           <button class="btn btn-primary" id="btn-nick-save">保存</button>

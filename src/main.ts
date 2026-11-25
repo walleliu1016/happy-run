@@ -381,16 +381,28 @@ function ensureLookUnlocked(id: string): boolean {
   return false;
 }
 
-/** 我的档案屏：段位 / 生涯统计 / 打卡日历 / 成就墙 / 装扮商店 / 全服排行榜 */
+/** 我的档案屏：头部卡（头像/昵称/段位/星星）+ 统计/打卡/成就/装扮/全服排行榜分组 */
 function renderProfile(): void {
   refreshStarCount();
-  // P2 段位卡（段位分到下一段位的进度）
+  // 头部渐变卡：头像 + 昵称（点击修改）+ 段位徽章 + 星星 + 段位进度
   const rp = rankProgress(profile);
-  $('#pf-rank').innerHTML = `
-    <div class="rank-big" data-t="${rp.tier.cls}"><span class="rank-icon">${rp.tier.icon}</span><b>${rp.tier.name}</b></div>
-    <div class="rank-score">段位分 <b>${rp.score}</b>${rp.next ? ` · 距 ${rp.next.name} 还差 ${rp.next.min - rp.score} 分` : ' · 已登顶'}</div>
-    <div class="rank-track"><i style="width:${rp.pct}%"></i></div>
-    <div class="rank-note">段位分 = 关卡星数×2 + 通关×6 + 成就×3 + 最高连击÷25（不受星星消费影响）</div>`;
+  const hero = $('#pf-hero');
+  hero.innerHTML = `
+    <div class="pfh-main">
+      <div class="pfh-avatar">${avatarFor(myId())}</div>
+      <div class="pfh-id">
+        <button type="button" class="pfh-name nick-chip" title="点击修改昵称">${escapeHtml(myName())}</button>
+        <div class="pfh-sub">点击昵称可修改 · PK、排行榜、在线列表都认这个名字</div>
+      </div>
+    </div>
+    <div class="pfh-badges">
+      <span class="pfh-chip pfh-rank" data-t="${rp.tier.cls}">${rp.tier.icon} ${rp.tier.name}</span>
+      <span class="pfh-chip">⭐ ${profile.stars}</span>
+    </div>
+    <div class="rank-track pfh-track"><i style="width:${rp.pct}%"></i></div>
+    <div class="rank-score pfh-score">段位分 <b>${rp.score}</b>${rp.next ? ` · 距 ${rp.next.name} 还差 ${rp.next.min - rp.score} 分` : ' · 已登顶'}</div>
+    <div class="rank-note pfh-note">段位分 = 关卡星数×2 + 通关×6 + 成就×3 + 最高连击÷25（不受星星消费影响）</div>`;
+  hero.querySelector('.pfh-name')?.addEventListener('click', () => openNickModal());
   const t = profile.totals;
   const stat = (label: string, value: string | number): string =>
     `<div class="pf-stat"><b>${value}</b><span>${label}</span></div>`;
@@ -426,14 +438,7 @@ function renderProfile(): void {
       }
     });
   });
-  // P2 全服排行榜（昵称保存 + 榜单拉取）
-  const nameInput = $<HTMLInputElement>('#lb-name');
-  nameInput.value = localStorage.getItem('wu.lbName') ?? '';
-  $<HTMLButtonElement>('#lb-name-save').onclick = () => {
-    localStorage.setItem('wu.lbName', nameInput.value.trim().slice(0, 12));
-    renderNick();
-    showToast('上榜昵称已保存');
-  };
+  // P2 全服排行榜（昵称统一走右上角昵称 chip）
   renderLb();
 }
 
@@ -608,7 +613,7 @@ function updateMenuSummary(): void {
 // ---------- 菜单 ----------
 function selectCard(group: 'scene' | 'source', value: string): void {
   const attr = group === 'scene' ? 'data-scene' : 'data-source';
-  document.querySelectorAll<HTMLElement>(`.mode-card[${attr}]`).forEach((el) => {
+  document.querySelectorAll<HTMLElement>(`.mode-card[${attr}], .set-src-row[${attr}]`).forEach((el) => {
     el.classList.toggle('selected', el.getAttribute(attr) === value);
   });
   if (group === 'scene') {
@@ -1153,18 +1158,32 @@ function myId(): string {
 function myName(): string {
   return (localStorage.getItem('wu.lbName') || '').trim().slice(0, 12) || '匿名玩家';
 }
-/** 右上角昵称 chip（菜单/PK 页多个节点同步） */
+/** 右上角昵称 chip（菜单/PK 页多个节点同步；档案头部名条只显名字） */
 function renderNick(): void {
   document.querySelectorAll<HTMLElement>('.nick-chip').forEach((el) => {
-    el.textContent = `👤 ${myName()}`;
+    el.textContent = el.classList.contains('pfh-name') ? myName() : `👤 ${myName()}`;
   });
 }
-/** 自绘昵称弹层（红线：不用原生 prompt，APK 兜底横排弹窗不跟转） */
-function openNickModal(): void {
+/** 自绘昵称弹层（红线：不用原生 prompt，APK 兜底横排弹窗不跟转）。
+ *  first === true 走首进欢迎变体：引导文案 + 「保存并开始」+ 隐藏取消。 */
+function openNickModal(first: unknown = false): void {
   const modal = $('#nick-modal');
   const input = $<HTMLInputElement>('#nick-input');
   if (!modal || !input) return;
-  input.value = myName() === '匿名玩家' ? '' : myName();
+  const welcome = first === true;
+  const title = $('#nick-title');
+  const sub = $('#nick-sub');
+  const save = $<HTMLButtonElement>('#btn-nick-save');
+  const cancel = $<HTMLButtonElement>('#btn-nick-cancel');
+  if (title) title.textContent = welcome ? '👋 欢迎来到 WarmingUp' : '设置昵称';
+  if (sub) {
+    sub.textContent = welcome
+      ? '先给自己起个名字吧——PK 对战、排行榜、在线列表都认它，下次进来还是这个名字'
+      : 'PK 对战、排行榜、在线列表都用这个名字';
+  }
+  if (save) save.textContent = welcome ? '保存并开始' : '保存';
+  if (cancel) cancel.hidden = welcome;
+  input.value = welcome ? '' : (myName() === '匿名玩家' ? '' : myName());
   modal.classList.add('show');
   input.focus();
 }
@@ -1175,8 +1194,6 @@ function saveNick(): void {
   const input = $<HTMLInputElement>('#nick-input');
   const name = (input?.value ?? '').trim().slice(0, 12) || '匿名玩家';
   localStorage.setItem('wu.lbName', name);
-  const lbInput = $<HTMLInputElement>('#lb-name');
-  if (lbInput) lbInput.value = name;
   renderNick();
   closeNickModal();
   showToast('昵称已保存');
@@ -2686,6 +2703,8 @@ function setupMenu(): void {
   }
   renderNick();
   startPresencePoll();
+  // 首次进入本设备：自动弹昵称引导（保存后右上角常驻显示，重复进入沿用）
+  if (!localStorage.getItem('wu.lbName')) openNickModal(true);
   document.querySelectorAll<HTMLElement>('.nick-chip').forEach((el) => {
     el.addEventListener('click', openNickModal);
   });
@@ -2715,7 +2734,7 @@ function setupMenu(): void {
   document.querySelectorAll<HTMLElement>('.mode-card[data-scene]').forEach((el) => {
     el.addEventListener('click', () => selectCard('scene', el.dataset.scene ?? 'class'));
   });
-  document.querySelectorAll<HTMLElement>('.mode-card[data-source]').forEach((el) => {
+  document.querySelectorAll<HTMLElement>('.set-src-row[data-source]').forEach((el) => {
     el.addEventListener('click', () => {
       userPickedSource = true;
       selectCard('source', el.dataset.source ?? 'direct');
