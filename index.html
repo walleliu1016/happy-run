@@ -48,6 +48,7 @@
           <div class="brand"><span class="brand-dot"></span>WarmingUp 律动跑酷</div>
         </div>
         <div class="topbar-right">
+          <button class="pad-chip" id="pad-chip" title="手柄/键盘连接状态，点击查看连接方法">🎮 手柄未连</button>
           <button class="nick-chip" title="我的昵称，点击修改">👤 设置昵称</button>
           <button class="rank-chip" id="rank-chip" title="段位：累计实力，不受星星消费影响">🥉 青铜·起步</button>
           <button class="star-chip" id="star-chip" title="星星：每局都赚，用来解锁装扮">⭐ <b id="star-count">0</b></button>
@@ -321,10 +322,14 @@
               <span class="set-ic">🎮</span>
               <span class="set-txt">
                 <b>手柄 · 键盘</b>
-                <small>A跳 B踩 X挥 Y蹲 · 摇杆/十字键移动 · <span id="pad-status" class="pad-status">未连接 · 蓝牙配对后自动识别</span></small>
+                <small>A跳 B踩 X挥 Y蹲 · 摇杆/十字键移动</small>
               </span>
               <span class="set-check">✓</span>
             </button>
+            <div class="set-row set-row-btns">
+              <button class="btn btn-ghost btn-small" id="btn-pad-help">🔗 连接手柄</button>
+              <span class="pad-badge" id="pad-status">⚪ 未连接 · 点「连接手柄」看方法</span>
+            </div>
             <div class="card side-card set-subcard" id="pair-card" hidden>
               <h3>手机配对</h3>
               <p class="lead small">用手机浏览器扫这个码（或手动输入网址），保持和电视同一 WiFi。</p>
@@ -520,6 +525,7 @@
       </div>
       <div class="game-hud" id="game-hud">
         <div class="hud-left">
+          <div class="hud-pad" id="hud-pad" hidden>🎮 <span id="hud-pad-name"></span></div>
           <div class="hud-timer" id="hud-timer">00:45</div>
           <div class="hud-hearts" id="hud-hearts">❤ 100</div>
           <div class="hud-phase" id="hud-phase" hidden><span class="phase-dot" id="phase-dot"></span><span id="phase-text">GREEN LIGHT</span></div>
@@ -635,6 +641,23 @@
         <div class="btn-row center">
           <button class="btn btn-primary" id="btn-nick-save">保存</button>
           <button class="btn btn-ghost" id="btn-nick-cancel">取消</button>
+        </div>
+      </div>
+    </div>
+    <!-- 手柄连接向导弹层（自绘；蓝牙配对在系统设置做，网页按键即认） -->
+    <div class="nick-overlay" id="pad-modal">
+      <div class="card nick-modal pad-modal">
+        <h3>🎮 手柄怎么连？</h3>
+        <p class="lead small">蓝牙配对要在<b>系统设置</b>里做（网页代替不了）；配对好回这里按键就认。</p>
+        <ol class="pad-steps">
+          <li><b>① 系统蓝牙配对</b><span>打开手机 / 电视 / 电脑的蓝牙设置，把手柄或 Joy-Con 配对到本设备（Joy-Con：长按侧面小圆钮，灯闪后在蓝牙列表选它）</span></li>
+          <li><b>② 回来这里，按手柄任意一键</b><span>浏览器要按键一次才上报手柄——拿手柄随便按一个键就行</span></li>
+          <li><b>③ 下面变绿 = 连好了</b><span>直接开玩：A跳 B踩 X挥 Y蹲 · 摇杆/十字键移动 · L/R 跑</span></li>
+        </ol>
+        <div class="pad-detect" id="pad-detect">⏳ 等待手柄… 配对好后请按一下任意按键</div>
+        <div class="pad-devices" id="pad-devices"></div>
+        <div class="btn-row center">
+          <button class="btn btn-primary" id="btn-pad-close">知道了</button>
         </div>
       </div>
     </div>

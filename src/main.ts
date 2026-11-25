@@ -623,6 +623,11 @@ function selectCard(group: 'scene' | 'source', value: string): void {
   } else {
     source = value as InputSource;
     updatePairCard();
+    // 首次选「手柄·键盘」且还没连上 → 自动弹连接向导（之后靠顶部 chip / 设置页入口）
+    if (value === 'pad' && !connectedPadNames().length && !localStorage.getItem('wu.padHelpSeen')) {
+      localStorage.setItem('wu.padHelpSeen', '1');
+      openPadModal();
+    }
   }
   updateMenuSummary();
 }
@@ -1201,6 +1206,62 @@ function saveNick(): void {
 }
 function pkSaveName(): string {
   return myName();
+}
+
+// ---------- 手柄连接状态（顶部 chip + 设置徽章 + 向导弹层 + 游戏 HUD） ----------
+/** 手柄 id 常带长后缀，取括号前短名显示 */
+function shortPadName(id: string): string {
+  const m = id.split('(')[0].trim();
+  return (m || id).slice(0, 14);
+}
+let padWasConnected = false;
+let padPollTimer = 0;
+function refreshPadStatus(): void {
+  const names = connectedPadNames();
+  const on = names.length > 0;
+  const short = on ? shortPadName(names[0]) : '';
+  const st = $('#pad-status');
+  if (st) {
+    st.textContent = on ? `🟢 已连接：${short}` : '⚪ 未连接 · 点「连接手柄」看方法';
+    st.classList.toggle('on', on);
+  }
+  const chip = $('#pad-chip');
+  if (chip) {
+    chip.textContent = on ? `🎮 ${short}` : '🎮 手柄未连';
+    chip.classList.toggle('pad-on', on);
+  }
+  const det = $('#pad-detect');
+  if (det) {
+    det.textContent = on
+      ? `✅ 已连接：${names[0].slice(0, 36)}`
+      : '⏳ 等待手柄… 配对好后请按一下任意按键';
+    det.classList.toggle('on', on);
+  }
+  const dev = $('#pad-devices');
+  if (dev) {
+    dev.innerHTML = on ? names.map((n) => `🎮 ${escapeHtml(n)}`).join('<br/>') : '';
+  }
+  const hudPad = $('#hud-pad');
+  if (hudPad) {
+    hudPad.hidden = !(on && source === 'pad');
+    const nm = $('#hud-pad-name');
+    if (nm && on) nm.textContent = short;
+  }
+  if (on && !padWasConnected) showToast(`🎮 手柄已连接：${short}`);
+  if (!on && padWasConnected) showToast('🎮 手柄已断开');
+  padWasConnected = on;
+}
+/** 连接向导弹层：打开即 250ms 快轮询（平时 1.5s），连接变绿立刻可见 */
+function openPadModal(): void {
+  $('#pad-modal')?.classList.add('show');
+  refreshPadStatus();
+  window.clearInterval(padPollTimer);
+  padPollTimer = window.setInterval(refreshPadStatus, 250);
+}
+function closePadModal(): void {
+  $('#pad-modal')?.classList.remove('show');
+  window.clearInterval(padPollTimer);
+  padPollTimer = 0;
 }
 
 function diffLabel(d: string): string {
@@ -2745,17 +2806,14 @@ function setupMenu(): void {
   });
 
   // 手柄连接状态（Joy-Con 蓝牙配对后自动识别；Chrome 系需按键一次才上报）
-  const padStatus = $('#pad-status');
-  const refreshPadStatus = (): void => {
-    const names = connectedPadNames();
-    padStatus.textContent = names.length
-      ? `✅ 已连接：${names[0].slice(0, 22)}`
-      : '未连接 · 蓝牙配对后自动识别';
-  };
   window.addEventListener('gamepadconnected', refreshPadStatus);
   window.addEventListener('gamepaddisconnected', refreshPadStatus);
   refreshPadStatus();
   window.setInterval(refreshPadStatus, 1500);
+  // 连接向导弹层入口：顶部 chip / 设置页「连接手柄」
+  $('#pad-chip')?.addEventListener('click', openPadModal);
+  $('#btn-pad-help')?.addEventListener('click', openPadModal);
+  $('#btn-pad-close')?.addEventListener('click', closePadModal);
 
   updateMenuSummary();
 
