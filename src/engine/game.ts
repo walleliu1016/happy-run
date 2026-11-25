@@ -252,6 +252,7 @@ export class Game {
   private current: THREE.AnimationAction | null = null;
   /** 判定反馈（夸奖/鼓励）播到该时刻后恢复演示 */
   private reactUntil = 0;
+  private stumbleUntil = 0; // miss 踉跄晃动到时
 
   private bricks: Brick[] = [];
   private debris: Debris[] = [];
@@ -281,8 +282,10 @@ export class Game {
   private fovBase = 56;
   /** 速度线（赛道两侧流光） */
   private speedLines: THREE.Mesh[] = [];
+  private speedLineMat: THREE.MeshBasicMaterial | null = null; // 速度线共享材质（冲刺强度调色用）
+  private rush = 0; // 冲刺强度 0..1（连击倍率平滑驱动）
   private flash = 0;
-  private state: 'idle' | 'countdown' | 'playing' | 'done' = 'idle';
+  private state: 'idle' | 'countdown' | 'playing' | 'celebrate' | 'done' = 'idle';
   private t0 = 0;
   private endTime = 0;
   private runwayTex: THREE.CanvasTexture;
@@ -324,6 +327,7 @@ export class Game {
   /** 自定义人物（2D 纸片人领操员） */
   private avatar: THREE.Mesh | null = null;
   private avatarT = 0;
+  private coachModel: THREE.Object3D | null = null; // 3D 教练（踉跄位移用）
 
   constructor(
     private canvas: HTMLCanvasElement,
@@ -580,6 +584,7 @@ export class Game {
       blending: THREE.AdditiveBlending,
       depthWrite: false,
     });
+    this.speedLineMat = lineMat;
     const nLines = this.lowPerf ? 8 : 18;
     for (let i = 0; i < nLines; i++) {
       const m = new THREE.Mesh(lineGeo, lineMat);
@@ -780,6 +785,7 @@ export class Game {
         });
       }
 
+      this.coachModel = model;
       this.coachScene.add(model);
     } catch {
       // 模型加载失败：教练缺席但游戏照常
@@ -1331,6 +1337,7 @@ export class Game {
     if (quality === 'miss') {
       this.playAnim('hit', 0.1);
       this.reactUntil = songT + 0.55;
+      this.stumbleUntil = songT + 0.55; // 踉跄：受击后左右晃动衰减
     } else {
       this.playAnim('cheer', 0.12);
       this.reactUntil = songT + (quality === 'perfect' ? 0.8 : quality === 'great' ? 0.6 : 0.5);
@@ -1342,7 +1349,7 @@ export class Game {
     if (this.reactUntil > 0 && songT > this.reactUntil) {
       this.reactUntil = 0;
       if (this.demoAction) this.playAnim(Game.DEMO_ANIM[this.demoAction], 0.2);
-      else this.playAnim('idle', 0.25);
+      else this.playAnim('run', 0.25, 0.8); // 反馈结束回原地慢跑（角色不静立）
     }
 
     // 找最近未判定事件，提前 1 秒开演
@@ -1363,16 +1370,30 @@ export class Game {
     }
     if (this.demoAction && songT > this.demoUntil) {
       this.demoAction = null;
-      if (this.reactUntil <= 0) this.playAnim('idle', 0.25);
+      if (this.reactUntil <= 0) this.playAnim('run', 0.25, 0.8);
       this.hooks.onDemo?.(null);
+    }
+
+    // 常态跑步循环兜底：无演示/无反馈时维持原地慢跑，角色一直活着
+    if (!this.demoAction && this.reactUntil <= 0 && songT > 0.8
+      && this.actions.run && this.current !== this.actions.run) {
+      this.playAnim('run', 0.3, 0.8);
     }
   }
 
   // ================= 主循环 =================
   private loop = (): void => {
-    if (this.state !== 'playing') return;
+    if (this.state !== 'playing' && this.state !== 'celebrate') return;
     const dt = Math.min(this.clock.getDelta(), 0.05);
     const songT = this.audio.now - this.t0;
+    // 冲线庆祝：只跑动画与渲染 1.15s（教练欢呼被看到），跳过判定/统计
+    if (this.state === 'celebrate') {
+      this.mixer?.update(dt);
+      this.composer.render();
+      this.renderCoach(dt);
+      if (songT <= this.endTime + 1.15) this.raf = requestAnimationFrame(this.loop);
+      return;
+    }
     // 顿帧（hit-stop）：命中瞬间冻结视觉，判定时钟照走；帧后 1.3× 追帧
     if (this.hitStop > 0) {
       this.hitStop -= dt;
@@ -1489,6 +1510,19 @@ export class Game {
 
     this.mixer?.update(vdt);
 
+    // miss 踉跄：受击后 0.55s 内左右晃动衰减
+    if (this.coachModel) {
+      const sT = this.stumbleUntil - songT;
+      this.coachModel.position.x = sT > 0 ? Math.sin((0.55 - sT) * 30) * 0.1 * (sT / 0.55) : 0;
+    }
+    // 冲刺强度：连击倍率平滑驱动，速度线随冲刺升温（冲刺拖影）
+    const rushT = Math.min(1, Math.max(0, (this.stats.multiplier - 1) / 3));
+    this.rush += (rushT - this.rush) * Math.min(1, dt * 2.2);
+    if (this.speedLineMat) {
+      this.speedLineMat.opacity = 0.22 + this.rush * 0.5;
+      this.speedLineMat.color.setRGB(0.62 + this.rush * 0.38, 0.85 + this.rush * 0.12, 1);
+    }
+
     // 装饰自转（增量；位置由 layoutWorldAt 按时钟摆）
     this.scene3.children.forEach((c) => {
       if (c.userData.spin) c.rotation.y += (c.userData.spin as number) * dt;
@@ -1496,7 +1530,7 @@ export class Game {
 
     // 速度线推进（1.55× 世界速，强化冲刺感；顿帧时冻结）
     for (const m of this.speedLines) {
-      m.position.z -= SPEED * 1.55 * vdt;
+      m.position.z -= SPEED * (1.35 + this.rush * 0.85) * vdt;
       if (m.position.z < -6) m.position.z += 186;
     }
 
@@ -1612,9 +1646,13 @@ export class Game {
     this.renderCoach(dt);
 
     if (songT > this.endTime) {
-      this.state = 'done';
-      this.hooks.onEnd({ ...this.stats });
-      return;
+      if (this.state === 'playing') {
+        this.state = 'celebrate';
+        this.playAnim('cheer', 0.12, 1.12); // 冲线庆祝：结算欢呼
+        this.stumbleUntil = 0;
+        this.hooks.onEnd({ ...this.stats });
+      }
+      // 不 return：下帧走 celebrate 路径把欢呼播完再停帧
     }
     this.raf = requestAnimationFrame(this.loop);
   };

@@ -1671,7 +1671,7 @@ body.force-landscape #app {
   .hud-score.pop, .countdown.tick, .screen.active .mode-card,
   .screen.active .level-poster, .screen.active .stat, .screen.active .result-card,
   .rs-rank, .rs-rank::after, .rs-record b, .result-stars.full::after,
-  .tv-focus.btn::after { animation: none; }
+  .tv-focus.btn::after, #screen-game .speed-lines.speeding-hot .sl { animation: none; }
   .btn::after { display: none; }
 }
 
@@ -1799,4 +1799,22 @@ body.force-landscape #app {
 .rs-lb-top {
   margin-top: 6px; font-size: 0.82em; font-weight: 500; color: var(--ink-2);
   overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+}
+
+/* ======================================================================
+   冲刺拖影（游戏屏四角速度线随连击倍率升温；教练层拖影在 game.ts rush 驱动）
+   ====================================================================== */
+#screen-game .speed-lines .sl {
+  opacity: 0.28; transform: scale(0.98);
+  transition: opacity 0.35s ease, transform 0.35s ease;
+}
+#screen-game .speed-lines.speeding .sl { opacity: 0.62; transform: scale(1.03); }
+#screen-game .speed-lines.speeding-hot .sl {
+  opacity: 0.95; transform: scale(1.08);
+  animation: sl-rush 0.5s linear infinite;
+}
+@keyframes sl-rush {
+  0% { filter: brightness(1); }
+  50% { filter: brightness(1.45); }
+  100% { filter: brightness(1); }
 }

@@ -1619,7 +1619,10 @@ async function startGame(chartOverride?: Chart, opts?: GameOpts): Promise<void> 
       void cd.offsetWidth;
       cd.classList.add('tick');
     },
-    onEnd: (s: GameStats) => void showResult(s),
+    onEnd: (s: GameStats) => {
+      // 冲线庆祝 1.15s 后再进结算，让教练欢呼被看到
+      void delay(1150).then(() => showResult(s));
+    },
     onTimeline: (items) => renderTimeline(items),
     onPhase: (kind) => {
       const ph = $('#hud-phase');
@@ -2004,6 +2007,12 @@ function updateHud(s: GameStats): void {
   mult.textContent = `×${s.multiplier}`;
   mult.classList.toggle('hot', s.multiplier >= 3);
   mult.style.display = scene !== 'class' && s.multiplier > 1 ? 'block' : 'none';
+  // 冲刺拖影：四角速度线随连击倍率升温（幂等 toggle，每帧安全）
+  const rushLines = document.querySelector('#screen-game .speed-lines');
+  if (rushLines) {
+    rushLines.classList.toggle('speeding', s.multiplier >= 2);
+    rushLines.classList.toggle('speeding-hot', s.multiplier >= 4);
+  }
   // 分数滚动追值（每帧指数平滑）
   shownScore += (s.score - shownScore) * 0.16;
   if (Math.abs(s.score - shownScore) < 1) shownScore = s.score;
