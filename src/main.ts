@@ -28,7 +28,7 @@ import { ActionClassifier } from './input/classifier';
 import { GamepadInput, connectedPadNames } from './input/gamepad';
 import { PoseInput } from './input/pose';
 import { Pairing, randomCode } from './input/remote';
-import { attachTvNav } from './input/tvnav';
+import { attachTvNav, normKey } from './input/tvnav';
 import type {
   Chart, ChartStyle, CoachSkin, Difficulty, GameAction, GameStats, InputSource,
   JudgeQuality, JudgeResult, SceneMode, SceneTheme, SectionKind,
@@ -2960,11 +2960,12 @@ function setupMenu(): void {
     el.addEventListener('click', () => goBack());
   });
 
-  // 遥控器/键盘
+  // 遥控器/键盘（normKey：老 WebView 键名 'Left'/'Up' 与 keyCode 两路兼容）
   window.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && game) quitGame();
+    const key = normKey(e);
+    if (key === 'Escape' && game) quitGame();
     if (!game || e.repeat) return;
-    if (e.key === 'Enter' || e.key === ' ') {
+    if (key === 'Enter' || key === ' ') {
       // 电视遥控确认键可当"跳"输入（备用交互）
       game.pushAction('jump', audio.now);
       return;
@@ -2976,7 +2977,7 @@ function setupMenu(): void {
       ArrowLeft: 'left',
       ArrowRight: 'right',
     };
-    const act = arrowMap[e.key];
+    const act = arrowMap[key];
     if (act) game.pushAction(act, audio.now);
   });
 

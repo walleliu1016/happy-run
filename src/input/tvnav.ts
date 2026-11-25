@@ -5,6 +5,25 @@
 
 type Dir = 'up' | 'down' | 'left' | 'right';
 
+// 老 Android WebView（电视盒子 System WebView 常停在 Chrome 54 以前）的
+// KeyboardEvent.key 用旧 DOM3 命名（'Left'/'Up'…），部分遥控/盒子只给 keyCode。
+// 统一归一到 'Arrow*' / 'Enter' / ' ' / 'Escape'，否则方向键全部失灵、只剩确定键可用。
+const KEY_ALIASES: Record<string, string> = {
+  Up: 'ArrowUp', Down: 'ArrowDown', Left: 'ArrowLeft', Right: 'ArrowRight',
+  Spacebar: ' ', OK: 'Enter', Select: 'Enter', Esc: 'Escape',
+};
+const KEYCODE_MAP: Record<number, string> = {
+  38: 'ArrowUp', 40: 'ArrowDown', 37: 'ArrowLeft', 39: 'ArrowRight',
+  13: 'Enter', 23: 'Enter', 66: 'Enter', 32: ' ', 4: 'Escape',
+};
+
+/** 按键名归一化（新旧 WebView / 遥控键码三路兼容） */
+export function normKey(e: KeyboardEvent): string {
+  const k = e.key ?? '';
+  if (!k || k === 'Unidentified') return KEYCODE_MAP[e.keyCode || e.which] ?? k;
+  return KEY_ALIASES[k] ?? k;
+}
+
 const FOCUSABLE =
   'button:not([disabled]), [role="button"], input:not([type="hidden"]):not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href]';
 
@@ -87,13 +106,14 @@ export function attachTvNav(isBusy: () => boolean): void {
     if (isBusy()) return;
     const tag = (document.activeElement?.tagName ?? '').toLowerCase();
     const nativeInput = tag === 'input' || tag === 'textarea' || tag === 'select';
+    const key = normKey(e);
     const dirMap: Record<string, Dir> = {
       ArrowUp: 'up',
       ArrowDown: 'down',
       ArrowLeft: 'left',
       ArrowRight: 'right',
     };
-    const dir = dirMap[e.key];
+    const dir = dirMap[key];
     if (dir) {
       // 输入控件（滑杆/文本框）内方向键保留原生行为
       if (nativeInput && document.activeElement?.matches(NATIVE_INPUT)) return;
@@ -101,7 +121,7 @@ export function attachTvNav(isBusy: () => boolean): void {
       move(dir);
       return;
     }
-    if (e.key === 'Enter' || e.key === ' ') {
+    if (key === 'Enter' || key === ' ') {
       if (e.repeat) return;
       const items = focusables();
       const target = (cur && items.includes(cur) ? cur : items[0]) ?? null;
@@ -111,6 +131,46 @@ export function attachTvNav(isBusy: () => boolean): void {
       target.click();
     }
   });
+
+  // 触摸板/触屏遥控器兜底：滑动 = 方向键，轻点空白 = 确认。
+  // 部分手机遥控器触摸板模式只发触摸事件不发按键，方向键链路靠它才能操作。
+  // 注意：tv-mode class 是 boot 后段才加的，挂载时机判不到，必须在事件时判断。
+  {
+    let sx = 0, sy = 0, st = 0, tracking = false;
+    window.addEventListener('touchstart', (e) => {
+      if (!document.documentElement.classList.contains('tv-mode') || isBusy() || e.touches.length !== 1) {
+        tracking = false;
+        return;
+      }
+      const t = e.touches[0];
+      sx = t.clientX; sy = t.clientY; st = Date.now(); tracking = true;
+    }, { passive: true });
+    window.addEventListener('touchend', (e) => {
+      if (!tracking || !e.changedTouches.length) return;
+      tracking = false;
+      const t = e.changedTouches[0];
+      const dx = t.clientX - sx;
+      const dy = t.clientY - sy;
+      const dist = Math.max(Math.abs(dx), Math.abs(dy));
+      const tag = (document.activeElement?.tagName ?? '').toLowerCase();
+      const nativeInput = tag === 'input' || tag === 'textarea' || tag === 'select';
+      if (Date.now() - st > 800) return;
+      if (dist < 24) {
+        // 轻点：点在可聚焦元素上走原生点击；点在空白处 = 确认当前焦点
+        const el = t.target instanceof Element ? t.target.closest(FOCUSABLE) : null;
+        if (el) return;
+        const items = focusables();
+        const target = (cur && items.includes(cur) ? cur : items[0]) ?? null;
+        if (!target) return;
+        focusEl(target);
+        target.click();
+        return;
+      }
+      if (dist < 40) return;
+      if (nativeInput && document.activeElement?.matches(NATIVE_INPUT)) return;
+      move(Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'down' : 'up'));
+    }, { passive: true });
+  }
 
   // 屏幕切换（.screen.active 变化）后自动重置焦点
   const obs = new MutationObserver(() => resetSoon());

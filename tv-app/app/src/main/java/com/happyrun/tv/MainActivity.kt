@@ -33,7 +33,7 @@ import android.widget.Toast
  *  - 遥控器返回键：单按 = 网页内返回/退出对局（window.__tvBack），双按 = 退出应用
  *  - TV 形态识别（UiModeManager）：电视设备给网页加 &tv=1，网页跳体检 + 遥控提示 + 菜单等比放大
  *  - 断网兜底错误页（一键重载）
- *  - D-pad / OK 键原样交给 DOM，由网页 tvnav 做焦点导航
+ *  - D-pad / OK 键显式转发给 DOM（焦点链路兜底），由网页 tvnav 做焦点导航
  */
 class MainActivity : Activity() {
 
@@ -45,7 +45,7 @@ class MainActivity : Activity() {
     // &v= 版本戳：升级安装后 URL 变化，旧 WebView 缓存自然失效（缓存键不同）；
     // 服务端对 HTML 发 no-cache 头，之后每次启动都协商到最新版，大资源仍走缓存。
     private val gameUrl: String
-        get() = "https://wbapp-yzfyjhdipy6i6cwc3v0zk2.app.workbuddy.host/?sharecode=T42CWLJYMM&v=1.1" +
+        get() = "https://wbapp-yzfyjhdipy6i6cwc3v0zk2.app.workbuddy.host/?sharecode=T42CWLJYMM&v=1.2" +
             if (isTv()) "&tv=1" else ""
 
     private fun isTv(): Boolean {
@@ -101,6 +101,11 @@ class MainActivity : Activity() {
                 view?.loadDataWithBaseURL(null, errorHtml(), "text/html", "utf-8", null)
             }
         }
+        // 键控焦点保活：不设的话部分盒子上 WebView 拿不到 view 焦点，
+        // 方向键被 Activity 焦点链路吃掉，只剩 OK（合成点击）能用
+        web.isFocusable = true
+        web.isFocusableInTouchMode = true
+        web.requestFocus()
         web.webChromeClient = object : WebChromeClient() {
             override fun onConsoleMessage(m: ConsoleMessage?): Boolean {
                 Log.d(TAG, m?.message() ?: "")
@@ -110,7 +115,7 @@ class MainActivity : Activity() {
         web.loadUrl(gameUrl)
     }
 
-    /** 遥控器按键：返回键交给网页钩子；D-pad/OK 原样下发给 DOM（网页 tvnav 处理） */
+    /** 遥控器按键：返回键交给网页钩子；D-pad/OK 显式下发给 DOM（网页 tvnav 处理） */
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
         if (keyCode == KeyEvent.KEYCODE_BACK) {
             web.evaluateJavascript("window.__tvBack ? window.__tvBack() : 0") { handled ->
@@ -126,6 +131,24 @@ class MainActivity : Activity() {
             return true
         }
         return super.onKeyDown(keyCode, event)
+    }
+
+    /**
+     * D-pad / OK 键优先交给 WebView：部分盒子（尤其手机遥控器注入的按键）
+     * 在 Activity 焦点链路里会丢方向键，这里显式 dispatch 给 DOM，不依赖默认转发。
+     */
+    override fun dispatchKeyEvent(event: KeyEvent?): Boolean {
+        if (event != null) {
+            when (event.keyCode) {
+                KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_DPAD_DOWN,
+                KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_DPAD_RIGHT,
+                KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER,
+                KeyEvent.KEYCODE_NUMPAD_ENTER, KeyEvent.KEYCODE_SPACE -> {
+                    if (web.dispatchKeyEvent(event)) return true
+                }
+            }
+        }
+        return super.dispatchKeyEvent(event)
     }
 
     private fun hideSystemUi() {
