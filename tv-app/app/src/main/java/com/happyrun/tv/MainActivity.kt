@@ -162,7 +162,7 @@ class MainActivity : Activity() {
                 if (web.dispatchKeyEvent(event)) return true
                 val up = event.action == KeyEvent.ACTION_UP
                 web.evaluateJavascript(
-                    "window.__tvKey&&window.__tvKey('$name',$up,${event.repeat})"
+                    "window.__tvKey&&window.__tvKey('$name',$up,${event.repeatCount > 0})"
                 ) {}
                 web.requestFocus() // 顺手把焦点要回来，下一颗键走原生链路
                 return true
