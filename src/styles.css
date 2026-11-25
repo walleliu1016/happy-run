@@ -483,6 +483,13 @@ body {
 /* ===== 难度档 ===== */
 .diff-cards { grid-template-columns: repeat(3, 1fr); }
 /* ===== 手柄连接状态（顶部 chip + 设置徽章 + 向导弹层 + 游戏 HUD） ===== */
+/* Joy 手柄 SVG 图标（分体双柄，代表 Joy-Con 类蓝牙体感设备） */
+.ic-joy {
+  width: 1.35em; height: 1.35em;
+  vertical-align: -0.28em; flex: none;
+}
+.ic-joy-h { width: 1.15em; height: 1.15em; vertical-align: -0.22em; margin-right: 4px; }
+.ic-joy-s { width: 1.1em; height: 1.1em; vertical-align: -0.22em; }
 .pad-chip {
   padding: 8px 14px; border-radius: 999px; border: 1px solid rgba(0, 0, 0, 0.12);
   background: #fff; color: var(--ink-2); font-size: clamp(12px, 1vw, 14px); font-weight: 700;

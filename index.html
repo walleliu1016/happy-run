@@ -48,7 +48,7 @@
           <div class="brand"><span class="brand-dot"></span>WarmingUp 律动跑酷</div>
         </div>
         <div class="topbar-right">
-          <button class="pad-chip" id="pad-chip" title="手柄/键盘连接状态，点击查看连接方法">🎮 手柄未连</button>
+          <button class="pad-chip" id="pad-chip" title="Joy 体感手柄/键盘连接状态，点击查看连接方法"><svg class="ic-joy"><use href="#icon-joy" xlink:href="#icon-joy"></use></svg> Joy 手柄未连</button>
           <button class="nick-chip" title="我的昵称，点击修改">👤 设置昵称</button>
           <button class="rank-chip" id="rank-chip" title="段位：累计实力，不受星星消费影响">🥉 青铜·起步</button>
           <button class="star-chip" id="star-chip" title="星星：每局都赚，用来解锁装扮">⭐ <b id="star-count">0</b></button>
@@ -207,7 +207,7 @@
             </div>
           </div>
           <div class="opt-block">
-            <h3 class="opt-label">🎮 这局怎么玩</h3>
+            <h3 class="opt-label">🎯 这局怎么玩</h3>
             <div class="mode-cards opt-cards">
               <button class="mode-card selected" data-scene="class">
                 <div class="mode-icon">🏫</div>
@@ -319,16 +319,16 @@
               <span class="set-check">✓</span>
             </button>
             <button type="button" class="set-row set-src-row" data-source="pad">
-              <span class="set-ic">🎮</span>
+              <span class="set-ic"><svg class="ic-joy"><use href="#icon-joy" xlink:href="#icon-joy"></use></svg></span>
               <span class="set-txt">
-                <b>手柄 · 键盘</b>
-                <small>A跳 B踩 X挥 Y蹲 · 摇杆/十字键移动</small>
+                <b>Joy 手柄 · 键盘</b>
+                <small>Joy-Con 等蓝牙体感手柄直连 · A跳 B踩 X挥 Y蹲 · 摇杆/十字键移动</small>
               </span>
               <span class="set-check">✓</span>
             </button>
             <div class="set-row set-row-btns">
-              <button class="btn btn-ghost btn-small" id="btn-pad-help">🔗 连接手柄</button>
-              <span class="pad-badge" id="pad-status">⚪ 未连接 · 点「连接手柄」看方法</span>
+              <button class="btn btn-ghost btn-small" id="btn-pad-help">🔗 Joy 手柄怎么连</button>
+              <span class="pad-badge" id="pad-status">⚪ 未连接 · 点「Joy 手柄怎么连」看步骤</span>
             </div>
             <div class="card side-card set-subcard" id="pair-card" hidden>
               <h3>手机配对</h3>
@@ -525,7 +525,7 @@
       </div>
       <div class="game-hud" id="game-hud">
         <div class="hud-left">
-          <div class="hud-pad" id="hud-pad" hidden>🎮 <span id="hud-pad-name"></span></div>
+          <div class="hud-pad" id="hud-pad" hidden><svg class="ic-joy"><use href="#icon-joy" xlink:href="#icon-joy"></use></svg> <span id="hud-pad-name"></span></div>
           <div class="hud-timer" id="hud-timer">00:45</div>
           <div class="hud-hearts" id="hud-hearts">❤ 100</div>
           <div class="hud-phase" id="hud-phase" hidden><span class="phase-dot" id="phase-dot"></span><span id="phase-text">GREEN LIGHT</span></div>
@@ -647,10 +647,10 @@
     <!-- 手柄连接向导弹层（自绘；蓝牙配对在系统设置做，网页按键即认） -->
     <div class="nick-overlay" id="pad-modal">
       <div class="card nick-modal pad-modal">
-        <h3>🎮 手柄怎么连？</h3>
+        <h3><svg class="ic-joy ic-joy-h"><use href="#icon-joy" xlink:href="#icon-joy"></use></svg> Joy 手柄怎么连？</h3>
         <p class="lead small">蓝牙配对要在<b>系统设置</b>里做（网页代替不了）；配对好回这里按键就认。</p>
         <ol class="pad-steps">
-          <li><b>① 系统蓝牙配对</b><span>打开手机 / 电视 / 电脑的蓝牙设置，把手柄或 Joy-Con 配对到本设备（Joy-Con：长按侧面小圆钮，灯闪后在蓝牙列表选它）</span></li>
+          <li><b>① 系统蓝牙配对</b><span>打开手机 / 电视 / 电脑的蓝牙设置，把 Joy-Con / 蓝牙体感手柄 配对到本设备（Joy-Con：长按侧面小圆钮，灯闪后在蓝牙列表选它）</span></li>
           <li><b>② 回来这里，按手柄任意一键</b><span>浏览器要按键一次才上报手柄——拿手柄随便按一个键就行</span></li>
           <li><b>③ 下面变绿 = 连好了</b><span>直接开玩：A跳 B踩 X挥 Y蹲 · 摇杆/十字键移动 · L/R 跑</span></li>
         </ol>
@@ -677,8 +677,25 @@
     <canvas id="confetti-canvas"></canvas>
     <div id="screen-wipe" aria-hidden="true"></div>
     <div id="toast" class="toast" hidden></div>
-    <div id="tv-hint-bar" class="tv-hint-bar" hidden>🎮 遥控器：方向键移动光标 · OK 选择 · 返回键 = 退出对局 / 回上页</div>
+    <div id="tv-hint-bar" class="tv-hint-bar" hidden>📺 遥控器：方向键移动光标 · OK 选择 · 返回键 = 退出对局 / 回上页</div>
   </div>
+  <!-- Joy 手柄图标（分体双柄：蓝柄摇杆+十字键点 / 红柄 ABXY+摇杆）——代表 Joy-Con 类蓝牙体感设备 -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <symbol id="icon-joy" viewBox="0 0 24 24">
+      <rect x="3" y="2" width="7.2" height="20" rx="3.6" fill="#2f80ff"/>
+      <circle cx="6.6" cy="7.2" r="1.9" fill="#fff"/>
+      <circle cx="6.6" cy="13.4" r="1" fill="#fff" opacity=".92"/>
+      <circle cx="6.6" cy="16.6" r="1" fill="#fff" opacity=".92"/>
+      <circle cx="5" cy="15" r="1" fill="#fff" opacity=".92"/>
+      <circle cx="8.2" cy="15" r="1" fill="#fff" opacity=".92"/>
+      <rect x="13.8" y="2" width="7.2" height="20" rx="3.6" fill="#ff375f"/>
+      <circle cx="17.4" cy="6.4" r="1" fill="#fff"/>
+      <circle cx="17.4" cy="9.6" r="1" fill="#fff"/>
+      <circle cx="15.8" cy="8" r="1" fill="#fff"/>
+      <circle cx="19" cy="8" r="1" fill="#fff"/>
+      <circle cx="17.4" cy="15.2" r="1.9" fill="#fff"/>
+    </symbol>
+  </svg>
   <script type="module" src="./src/main.ts"></script>
 </body>
 </html>

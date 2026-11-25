@@ -407,7 +407,7 @@ function renderProfile(): void {
   const stat = (label: string, value: string | number): string =>
     `<div class="pf-stat"><b>${value}</b><span>${label}</span></div>`;
   $('#pf-stats').innerHTML = [
-    stat('🎮 总局数', t.games),
+    stat('🏃 总局数', t.games),
     stat('⏱ 累计时长', `${Math.round(t.timeSec / 60)} 分`),
     stat('🔥 消耗热量', `${Math.round(t.kcal)} kcal`),
     stat('🤸 动作次数', t.actions),
@@ -600,7 +600,7 @@ async function runDeviceCheck(): Promise<void> {
 function updateMenuSummary(): void {
   const sceneTxt = scene === 'class' ? '🏫 课堂模式' : scene === 'train' ? '🔥 训练模式' : '⚡ 竞技 PK';
   const diffTxt = difficulty === 'easy' ? '🌱 轻松' : difficulty === 'hard' ? '⚡ 挑战' : '🔥 标准';
-  const srcTxt = source === 'direct' ? '📷 摄像头' : source === 'phone' ? '📱 手机识别' : '🎮 手柄·键盘';
+  const srcTxt = source === 'direct' ? '📷 摄像头' : source === 'phone' ? '📱 手机识别' : '🕹 Joy 手柄·键盘';
   const bg = document.querySelector<HTMLElement>('.look-chip[data-bg].selected')?.dataset.bg ?? 'neon';
   const bgMap: Record<string, string> = {
     neon: '🏜 霓虹峡谷', space: '🌌 星际漫游', candy: '🍬 糖果甜心', forest: '🌿 绿野仙踪', custom: '🖼 自定义背景',
@@ -1209,6 +1209,10 @@ function pkSaveName(): string {
 }
 
 // ---------- 手柄连接状态（顶部 chip + 设置徽章 + 向导弹层 + 游戏 HUD） ----------
+/** Joy 手柄图标（分体双柄 SVG，代表 Joy-Con 类蓝牙体感设备） */
+function joyIcon(cls = ''): string {
+  return `<svg class="ic-joy${cls ? ' ' + cls : ''}" aria-hidden="true"><use href="#icon-joy" xlink:href="#icon-joy"></use></svg>`;
+}
 /** 手柄 id 常带长后缀，取括号前短名显示 */
 function shortPadName(id: string): string {
   const m = id.split('(')[0].trim();
@@ -1222,12 +1226,12 @@ function refreshPadStatus(): void {
   const short = on ? shortPadName(names[0]) : '';
   const st = $('#pad-status');
   if (st) {
-    st.textContent = on ? `🟢 已连接：${short}` : '⚪ 未连接 · 点「连接手柄」看方法';
+    st.textContent = on ? `🟢 已连接：${short}` : '⚪ 未连接 · 点「Joy 手柄怎么连」看步骤';
     st.classList.toggle('on', on);
   }
   const chip = $('#pad-chip');
   if (chip) {
-    chip.textContent = on ? `🎮 ${short}` : '🎮 手柄未连';
+    chip.innerHTML = `${joyIcon()} ${on ? escapeHtml(short) : 'Joy 手柄未连'}`;
     chip.classList.toggle('pad-on', on);
   }
   const det = $('#pad-detect');
@@ -1239,7 +1243,7 @@ function refreshPadStatus(): void {
   }
   const dev = $('#pad-devices');
   if (dev) {
-    dev.innerHTML = on ? names.map((n) => `🎮 ${escapeHtml(n)}`).join('<br/>') : '';
+    dev.innerHTML = on ? names.map((n) => `${joyIcon('ic-joy-s')} ${escapeHtml(n)}`).join('<br/>') : '';
   }
   const hudPad = $('#hud-pad');
   if (hudPad) {
@@ -1247,8 +1251,8 @@ function refreshPadStatus(): void {
     const nm = $('#hud-pad-name');
     if (nm && on) nm.textContent = short;
   }
-  if (on && !padWasConnected) showToast(`🎮 手柄已连接：${short}`);
-  if (!on && padWasConnected) showToast('🎮 手柄已断开');
+  if (on && !padWasConnected) showToast(`🟢 Joy 手柄已连接：${short}`);
+  if (!on && padWasConnected) showToast('⚫ Joy 手柄已断开');
   padWasConnected = on;
 }
 /** 连接向导弹层：打开即 250ms 快轮询（平时 1.5s），连接变绿立刻可见 */
@@ -1407,7 +1411,7 @@ function renderPkRoomList(list: PkRoomList): void {
     const lv = LEVELS.find((l) => l.id === r.level);
     const joinable = r.state === 'waiting' && r.players < r.maxPlayers;
     return `<div class="pk-room-row">
-      <div class="pk-room-emoji">${lv?.poster.emoji ?? '🎮'}</div>
+      <div class="pk-room-emoji">${lv?.poster.emoji ?? '🏃'}</div>
       <div class="pk-room-info">
         <div class="pk-room-title">${escapeHtml(lv?.nameCn ?? r.level)} <span class="pk-room-meta">· ${escapeHtml(r.host)} 的房间</span></div>
         <div class="pk-room-meta">${escapeHtml(lv?.lv ?? '')} ${diffLabel(r.difficulty)} · ${r.players}/${r.maxPlayers} 人 · 房码 ${escapeHtml(r.code)}</div>
@@ -2008,7 +2012,7 @@ async function startGame(chartOverride?: Chart, opts?: GameOpts): Promise<void> 
   padInput = new GamepadInput((a) => game?.pushAction(a, audio.now));
   padInput.start();
   if (source === 'pad') {
-    showPoseHint('🎮 就绪：↑/W跳 ↓/S踩 ←→移动 J挥 K蹲 L跑');
+    showPoseHint('Joy 手柄/键盘就绪：↑/W跳 ↓/S踩 ←→移动 J挥 K蹲 L跑');
   }
 
   game.start().catch((e) => console.error('[wu] game.start 失败', e));
