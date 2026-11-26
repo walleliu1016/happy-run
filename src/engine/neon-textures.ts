@@ -33,9 +33,9 @@ export function runwayTexture(): THREE.CanvasTexture {
     ctx.stroke();
   }
   // 中线虚线
-  ctx.strokeStyle = 'rgba(34, 225, 255, 0.55)';
+  ctx.strokeStyle = 'rgba(255, 122, 26, 0.55)';
   ctx.lineWidth = 4;
-  ctx.shadowColor = '#22e1ff';
+  ctx.shadowColor = '#FF7A1A';
   ctx.setLineDash([46, 46]);
   ctx.beginPath();
   ctx.moveTo(128, 0);

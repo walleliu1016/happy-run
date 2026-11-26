@@ -38,14 +38,16 @@ export const ACTION_WINDOW: Record<GameAction, { perfect: number; great: number;
   right: { perfect: 0.12, great: 0.2, good: 0.3 },
 };
 
+// B 熔岩运动：动作色统一到暖色家族，按明度/色相拉开保证游戏中可区分。
+// 原冷蓝紫（#af52de / #0071e3 / #5ac8fa）在暖炭舞台上会跳色。
 const actionColor: Record<GameAction, string> = {
-  jump: '#ff9500',
-  squat: '#af52de',
-  punch: '#ff3b30',
-  stomp: '#34c759',
-  run: '#0071e3',
-  left: '#5ac8fa',
-  right: '#ffd60a',
+  jump: '#FF7A1A',
+  squat: '#C4243B',
+  punch: '#FF4D4D',
+  stomp: '#C6FF4D',
+  run: '#FFC233',
+  left: '#FF6B3D',
+  right: '#C9834E',
 };
 export const ACTION_COLOR = actionColor;
 

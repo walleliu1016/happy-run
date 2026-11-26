@@ -1759,7 +1759,7 @@ function renderPrepareHero(): void {
       </div>
       ${best}`;
   } else {
-    hero.style.setProperty('--lp-accent', '#0071e3');
+    hero.style.setProperty('--lp-accent', '#C9834E');
     hero.innerHTML = `
       <div class="phb-emoji">🎛</div>
       <div class="phb-text">
@@ -1965,10 +1965,21 @@ async function startGame(chartOverride?: Chart, opts?: GameOpts): Promise<void> 
     if (labChart) renderChartPreview(labChart); // 谱面预览随窗口/旋屏重绘
   });
 
+  // PiP 显隐同步到屏级 class：替代老电视内核不支持的 :has(.pip-wrap:not(.hidden)) 选择器。
+  // 局部函数每局一个、不注册常驻监听，不泄漏。
+  const syncPip = () => {
+    const pip = $('#pip-wrap');
+    const game = $('#screen-game');
+    if (!pip || !game) return;
+    if (pip.classList.contains('hidden')) game.classList.remove('pip-on');
+    else game.classList.add('pip-on');
+  };
+  syncPip();
+
   // 输入源接线
   if (source === 'direct') {
     const video = $<HTMLVideoElement>('#game-video');
-    $('#pip-wrap').classList.remove('hidden');
+    $('#pip-wrap').classList.remove('hidden'); syncPip();
     try {
       pose?.stop();
       pose = await PoseInput.create(video, (landmarks, _fps, numPoses) => {
@@ -1989,15 +2000,15 @@ async function startGame(chartOverride?: Chart, opts?: GameOpts): Promise<void> 
           : undefined,
       );
     } catch {
-      $('#pip-wrap').classList.add('hidden');
+      $('#pip-wrap').classList.add('hidden'); syncPip();
     }
   } else if (source === 'phone') {
-    $('#pip-wrap').classList.add('hidden');
+    $('#pip-wrap').classList.add('hidden'); syncPip();
     drawPoseOverlay(null);
     // pairing 在菜单阶段已建立 host，onAction 直通 game.pushAction
   } else {
     // 手柄/键盘：免摄像头免手机
-    $('#pip-wrap').classList.add('hidden');
+    $('#pip-wrap').classList.add('hidden'); syncPip();
     drawPoseOverlay(null);
   }
 
@@ -2057,7 +2068,7 @@ interface Confetto {
   w: number; h: number; rot: number; vr: number;
   color: string; life: number;
 }
-const CONFETTI_COLORS = ['#ffd60a', '#ff9f0a', '#ff375f', '#66e0ff', '#bf5af2', '#30d158', '#ffffff'];
+const CONFETTI_COLORS = ['#FFC233', '#FF7A1A', '#FF4D4D', '#FFB37A', '#C6FF4D', '#FF6B3D', '#FFF6EC'];
 const confetti: Confetto[] = [];
 let confettiRaf = 0;
 

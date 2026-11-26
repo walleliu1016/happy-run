@@ -39,13 +39,14 @@ class MainActivity : Activity() {
 
     private lateinit var web: WebView
     private var lastBackAt = 0L
+    private var lastKeyAt = 0L // 长按 repeat 限速，避免 50ms/发把网页焦点计算压垮
 
     // 线上游戏地址。游戏更新自动生效，无需重装 APK。
     // TV 设备附加 &tv=1：网页据此进入大屏形态（跳体检 / 遥控提示条 / 菜单等比放大）。
     // &v= 版本戳：升级安装后 URL 变化，旧 WebView 缓存自然失效（缓存键不同）；
     // 服务端对 HTML 发 no-cache 头，之后每次启动都协商到最新版，大资源仍走缓存。
     private val gameUrl: String
-        get() = "https://wbapp-yzfyjhdipy6i6cwc3v0zk2.app.workbuddy.host/?sharecode=T42CWLJYMM&v=1.4" +
+        get() = "https://wbapp-yzfyjhdipy6i6cwc3v0zk2.app.workbuddy.host/?sharecode=T42CWLJYMM&v=1.5" +
             if (isTv()) "&tv=1" else ""
 
     private fun isTv(): Boolean {
@@ -141,36 +142,40 @@ class MainActivity : Activity() {
     }
 
     /**
-     * 遥控按键 = 单一确定性管道：每个 D-pad/OK 键直接注入 JS（window.__tvKey），
+     * 遥控按键 = 单一确定性管道：D-pad/OK 的 ACTION_DOWN 直接注入 JS（window.__tvKey），
      * 不再「先试 WebView 再兜底」——WebView.dispatchKeyEvent 返回 true 不代表
      * DOM 收到（焦点被系统吃掉时它照样吞键），双路转发不确定性太强。
-     * 注入走 evaluateJavascript，与 WebView 焦点状态无关，遥控永不卡死；
-     * 长按连发靠系统 repeat 的 ACTION_DOWN 逐次注入（repeatCount > 0 透传）。
+     *
+     * P16 灵敏度/卡顿修复：
+     *  ① ACTION_UP 不再注入：网页侧只有 keydown 消费者，UP 那次跨桥纯属浪费，每键调用减半；
+     *  ② 长按 repeat 限速 90ms：系统 repeat 约 50ms 一发，会把网页几何计算压垮（另在
+     *     tvnav.ts 也做了一层节流，浏览器直连路径同样生效）。首次按下不受限，零延迟。
      * 已知取舍：文本框内方向键不再移动光标（TV 上文本输入靠 IME，影响可忽略）。
      */
     override fun dispatchKeyEvent(event: KeyEvent?): Boolean {
-        if (event != null) {
-            val name = when (event.keyCode) {
-                KeyEvent.KEYCODE_DPAD_UP -> "ArrowUp"
-                KeyEvent.KEYCODE_DPAD_DOWN -> "ArrowDown"
-                KeyEvent.KEYCODE_DPAD_LEFT -> "ArrowLeft"
-                KeyEvent.KEYCODE_DPAD_RIGHT -> "ArrowRight"
-                KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER,
-                KeyEvent.KEYCODE_NUMPAD_ENTER -> "Enter"
-                KeyEvent.KEYCODE_SPACE -> " "
-                else -> null
-            }
-            if (name != null) {
-                val up = event.action == KeyEvent.ACTION_UP
-                if (event.action == KeyEvent.ACTION_DOWN || up) {
-                    web.evaluateJavascript(
-                        "window.__tvKey&&window.__tvKey('$name',$up,${event.repeatCount > 0})"
-                    ) {}
-                }
-                return true
+        if (event == null) return super.dispatchKeyEvent(event)
+        val name = when (event.keyCode) {
+            KeyEvent.KEYCODE_DPAD_UP -> "ArrowUp"
+            KeyEvent.KEYCODE_DPAD_DOWN -> "ArrowDown"
+            KeyEvent.KEYCODE_DPAD_LEFT -> "ArrowLeft"
+            KeyEvent.KEYCODE_DPAD_RIGHT -> "ArrowRight"
+            KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER,
+            KeyEvent.KEYCODE_NUMPAD_ENTER -> "Enter"
+            KeyEvent.KEYCODE_SPACE -> " "
+            else -> null
+        }
+        if (name == null) return super.dispatchKeyEvent(event)
+        if (event.action == KeyEvent.ACTION_DOWN) {
+            val now = System.currentTimeMillis()
+            val isRepeat = event.repeatCount > 0
+            if (!isRepeat || now - lastKeyAt >= 90L) {
+                lastKeyAt = now
+                web.evaluateJavascript(
+                    "window.__tvKey&&window.__tvKey('$name',false,$isRepeat)"
+                ) {}
             }
         }
-        return super.dispatchKeyEvent(event)
+        return true
     }
 
     private fun hideSystemUi() {

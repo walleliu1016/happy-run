@@ -334,9 +334,10 @@ export function drawSharePoster(stats: GameStats, meta: { grade: string; stars: 
 
   // 背景渐变
   const bg = g.createLinearGradient(0, 0, 720, 1080);
-  bg.addColorStop(0, '#1b1140');
-  bg.addColorStop(0.55, '#2b1b6b');
-  bg.addColorStop(1, '#0a4f9c');
+  // B 熔岩运动：分享海报背景由蓝紫改暖炭→熔岩橙
+  bg.addColorStop(0, '#2A1208');
+  bg.addColorStop(0.55, '#5A2410');
+  bg.addColorStop(1, '#C24A0A');
   g.fillStyle = bg;
   g.fillRect(0, 0, 720, 1080);
 
@@ -352,12 +353,12 @@ export function drawSharePoster(stats: GameStats, meta: { grade: string; stars: 
   g.font = '700 44px "PingFang SC", sans-serif';
   g.fillText('WarmingUp 律动跑酷', 360, 110);
   g.font = '600 26px "PingFang SC", sans-serif';
-  g.fillStyle = '#bfe3ff';
+  g.fillStyle = '#FFD2A8';
   g.fillText(meta.levelName, 360, 158);
 
   // 评级大字
   g.font = '900 300px "PingFang SC", sans-serif';
-  g.fillStyle = '#ffd60a';
+  g.fillStyle = '#FFC233';
   g.fillText(meta.grade, 360, 470);
 
   // 星星
@@ -370,7 +371,7 @@ export function drawSharePoster(stats: GameStats, meta: { grade: string; stars: 
   g.font = '800 96px "PingFang SC", sans-serif';
   g.fillText(String(Math.round(stats.score)), 360, 720);
   g.font = '600 30px "PingFang SC", sans-serif';
-  g.fillStyle = '#bfe3ff';
+  g.fillStyle = '#FFD2A8';
   g.fillText(`最大连击 ${stats.maxCombo} · 动作 ${stats.total} 次 · ${stats.kcal.toFixed(0)} 千卡`, 360, 776);
 
   // 底部

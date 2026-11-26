@@ -58,8 +58,10 @@ const NEON: WorldPalette = {
   skyStops: ['#0a0512', '#160818', '#3a1020', '#6b1c2c', '#2a0c14'],
   starCss: 'rgba(255,220,200,1)',
   fog: 0x2a0e16,
-  sun: 0x5ce8ff,
-  sunGlow: 0x35c8ff,
+  // B 熔岩运动：默认 neon 舞台的冷青补光改暖（左红右金双补光），与 UI 同气质。
+  // SPACE / CANDY 主题保留各自色相，用于关卡识别，不动。
+  sun: 0xFFB84D,
+  sunGlow: 0xFF7A1A,
   terrainBase: '#380d18',
   terrainGrid: 'rgba(255,90,60,0.65)',
   terrainEmissive: 0xff5a3c,
@@ -70,7 +72,7 @@ const NEON: WorldPalette = {
   archEmissive: 0x8c1626,
   dust: 0xffd2a8,
   rimL: 0xff4a3c,
-  rimR: 0x35d8ff,
+  rimR: 0xFFC233,
   hemiSky: 0xff9a6a,
   hemiGround: 0x2a0c14,
 };
