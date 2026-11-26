@@ -6,6 +6,16 @@
   <title>WarmingUp 律动跑酷</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🏃</text></svg>" />
   <link rel="stylesheet" href="./src/styles.css" />
+  <script>
+    // 老电视 WebView 运行时兜底（Chrome <57 无 padStart；randomUUID 在代码里自带降级）
+    if (!String.prototype.padStart) {
+      String.prototype.padStart = function (len, pad) {
+        var s = String(this), p = pad === undefined ? ' ' : String(pad);
+        while (s.length < len) s = p + s;
+        return s;
+      };
+    }
+  </script>
 </head>
 <body>
   <div id="app">
@@ -647,15 +657,14 @@
     <!-- 手柄连接向导弹层（自绘；蓝牙配对在系统设置做，网页按键即认） -->
     <div class="nick-overlay" id="pad-modal">
       <div class="card nick-modal pad-modal">
-        <h3><svg class="ic-joy ic-joy-h"><use href="#icon-joy" xlink:href="#icon-joy"></use></svg> Joy 手柄怎么连？</h3>
-        <p class="lead small">蓝牙配对要在<b>系统设置</b>里做（网页代替不了）；配对好回这里按键就认。</p>
+        <h3><svg class="ic-joy ic-joy-h"><use href="#icon-joy" xlink:href="#icon-joy"></use></svg> Joy 手柄怎么连</h3>
+        <p class="lead small">先在<b>系统蓝牙设置</b>配对，再回这里按任意键。</p>
         <ol class="pad-steps">
-          <li><b>① 系统蓝牙配对</b><span>打开手机 / 电视 / 电脑的蓝牙设置，把 Joy-Con / 蓝牙体感手柄 配对到本设备（Joy-Con：长按侧面小圆钮，灯闪后在蓝牙列表选它）</span></li>
-          <li><b>② 回来这里，按手柄任意一键</b><span>浏览器要按键一次才上报手柄——拿手柄随便按一个键就行</span></li>
-          <li><b>③ 下面变绿 = 连好了</b><span>直接开玩：A跳 B踩 X挥 Y蹲 · 摇杆/十字键移动 · L/R 跑</span></li>
+          <li><b>① 系统蓝牙配对</b><span>打开手机 / 电视 / 电脑的蓝牙设置，把手柄配对到本设备（Joy-Con：长按侧面小圆钮，灯闪后在列表选它）</span></li>
+          <li><b>② 回这里按手柄任意一键</b><span>浏览器要按键一次才会识别</span></li>
+          <li><b>③ 变绿 = 连好了</b></li>
         </ol>
-        <div class="pad-detect" id="pad-detect">⏳ 等待手柄… 配对好后请按一下任意按键</div>
-        <div class="pad-devices" id="pad-devices"></div>
+        <div class="pad-detect" id="pad-detect">⏳ 等待手柄… 按一下任意键</div>
         <div class="btn-row center">
           <button class="btn btn-primary" id="btn-pad-close">知道了</button>
         </div>
@@ -697,5 +706,12 @@
     </symbol>
   </svg>
   <script type="module" src="./src/main.ts"></script>
+  <script nomodule>
+    document.getElementById('app').innerHTML =
+      '<div style="padding:48px 24px;text-align:center;font-family:sans-serif">' +
+      '<h2 style="font-size:28px">系统浏览器内核太旧</h2>' +
+      '<p style="opacity:.75;font-size:18px;line-height:1.7">这台电视的浏览器内核版本过低，无法运行游戏。<br>' +
+      '请到电视「设置 → 关于」更新系统后再打开，或换用最新版浏览器。</p></div>';
+  </script>
 </body>
 </html>

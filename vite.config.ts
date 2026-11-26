@@ -23,8 +23,13 @@ const pkApiPlugin: Plugin = {
 export default defineConfig({
   base: './',
   plugins: [pkApiPlugin],
+  // 电视盒子 System WebView 常停在 Chrome 60-79：不认 ?. / ??（ES2020），
+  // SyntaxError 会让整个脚本模块直接死掉——表现就是「页面出来了但遥控器/点击全没反应」。
+  // dev 转换 / 依赖预构建 / build 三处统一降到 ES2015（esbuild 降语法），老内核可跑。
+  esbuild: { target: 'es2015' },
+  optimizeDeps: { esbuildOptions: { target: 'es2015' } },
   build: {
-    target: 'es2020',
+    target: 'es2015',
     chunkSizeWarningLimit: 2000,
   },
   server: {

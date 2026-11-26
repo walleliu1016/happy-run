@@ -45,7 +45,7 @@ class MainActivity : Activity() {
     // &v= 版本戳：升级安装后 URL 变化，旧 WebView 缓存自然失效（缓存键不同）；
     // 服务端对 HTML 发 no-cache 头，之后每次启动都协商到最新版，大资源仍走缓存。
     private val gameUrl: String
-        get() = "https://wbapp-yzfyjhdipy6i6cwc3v0zk2.app.workbuddy.host/?sharecode=T42CWLJYMM&v=1.3" +
+        get() = "https://wbapp-yzfyjhdipy6i6cwc3v0zk2.app.workbuddy.host/?sharecode=T42CWLJYMM&v=1.4" +
             if (isTv()) "&tv=1" else ""
 
     private fun isTv(): Boolean {
@@ -141,10 +141,12 @@ class MainActivity : Activity() {
     }
 
     /**
-     * D-pad / OK 键优先交给 WebView：部分盒子（尤其手机遥控器注入的按键）
-     * 在 Activity 焦点链路里会丢方向键，这里显式 dispatch 给 DOM，不依赖默认转发。
-     * WebView 也没接住（返回 false，焦点被系统吃掉）时走 JS 桥注入 __tvKey，
-     * 合成 KeyboardEvent 走网页同一套处理——遥控永不「卡死」，键名归一在网页侧做。
+     * 遥控按键 = 单一确定性管道：每个 D-pad/OK 键直接注入 JS（window.__tvKey），
+     * 不再「先试 WebView 再兜底」——WebView.dispatchKeyEvent 返回 true 不代表
+     * DOM 收到（焦点被系统吃掉时它照样吞键），双路转发不确定性太强。
+     * 注入走 evaluateJavascript，与 WebView 焦点状态无关，遥控永不卡死；
+     * 长按连发靠系统 repeat 的 ACTION_DOWN 逐次注入（repeatCount > 0 透传）。
+     * 已知取舍：文本框内方向键不再移动光标（TV 上文本输入靠 IME，影响可忽略）。
      */
     override fun dispatchKeyEvent(event: KeyEvent?): Boolean {
         if (event != null) {
@@ -159,12 +161,12 @@ class MainActivity : Activity() {
                 else -> null
             }
             if (name != null) {
-                if (web.dispatchKeyEvent(event)) return true
                 val up = event.action == KeyEvent.ACTION_UP
-                web.evaluateJavascript(
-                    "window.__tvKey&&window.__tvKey('$name',$up,${event.repeatCount > 0})"
-                ) {}
-                web.requestFocus() // 顺手把焦点要回来，下一颗键走原生链路
+                if (event.action == KeyEvent.ACTION_DOWN || up) {
+                    web.evaluateJavascript(
+                        "window.__tvKey&&window.__tvKey('$name',$up,${event.repeatCount > 0})"
+                    ) {}
+                }
                 return true
             }
         }
