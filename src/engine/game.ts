@@ -7,7 +7,7 @@ import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import type { Chart, ChartEvent, GameAction, GameStats, JudgeQuality, JudgeResult, SceneMode } from '../types';
 import { comboMultiplier, emptyStats } from '../types';
 import { ACTION_COLOR, ACTION_LABEL, ACTION_LABEL_EN, ACTION_WINDOW, chartDuration, eventTime } from './chart';
-import { drawPoseGlyph, poseSilhouetteCanvas } from './pose-shapes';
+import { drawPoseGlyph } from './pose-shapes';
 import type { BeatAudio } from './audio';
 import { duskSkyTexture, glowTexture, gridTerrainTexture, iconTexture, neonMaterial, roadTexture } from './neon-textures';
 import { SKIN_CONFIG, THEME_PALETTE, type GameLook, type SkinConfig, type WorldPalette } from './look';
@@ -57,6 +57,8 @@ interface Brick {
   bodyMat: THREE.MeshStandardMaterial | THREE.MeshBasicMaterial;
   /** 预判光柱材质（近判定线渐隐；非 block 形态为 null） */
   pillar?: THREE.MeshBasicMaterial | null;
+  /** 符号面片（block 形态）；逐帧做距离补偿缩放，保证远处仍可辨 */
+  face?: THREE.Mesh | null;
 }
 
 const GRAVITY = 26;
@@ -100,20 +102,33 @@ function wallPanelTexture(action: GameAction): THREE.CanvasTexture {
   return tex;
 }
 
-/** 姿势剪影 GL 纹理缓存（玻璃板面牌 / 动作块贴片用） */
-const silTexCache = new Map<string, THREE.Texture>();
-function silhouetteTexture(action: GameAction, color: string): THREE.Texture {
-  const key = `${action}|${color}`;
-  let tex = silTexCache.get(key);
-  if (!tex) {
-    tex = new THREE.CanvasTexture(poseSilhouetteCanvas(action, color, 160));
-    tex.colorSpace = THREE.SRGBColorSpace;
-    silTexCache.set(key, tex);
-  }
-  return tex;
+/**
+ * 深炭不透明底板 + 主题色描边（P17 可读性根治）。
+ * 舞台消失点叠着巨型日盘（实测亮度 225/255），纯白符号在其上对比仅 1.15:1；
+ * 加一层不透明底板后，白符号对比 ≥12:1 且**与背景明暗解耦**，四个主题通用。
+ * 手写 quadraticCurveTo 圆角，不用 Chrome 99+ 才有的 ctx.roundRect。
+ */
+function drawBadge(
+  g: CanvasRenderingContext2D, cx: number, cy: number,
+  w: number, h: number, accent: string, r: number, border: number,
+): void {
+  const x = cx - w / 2;
+  const y = cy - h / 2;
+  g.beginPath();
+  g.moveTo(x + r, y);
+  g.lineTo(x + w - r, y); g.quadraticCurveTo(x + w, y, x + w, y + r);
+  g.lineTo(x + w, y + h - r); g.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  g.lineTo(x + r, y + h); g.quadraticCurveTo(x, y + h, x, y + h - r);
+  g.lineTo(x, y + r); g.quadraticCurveTo(x, y, x + r, y);
+  g.closePath();
+  g.fillStyle = '#0B0709';
+  g.fill();
+  g.strokeStyle = accent;
+  g.lineWidth = border;
+  g.stroke();
 }
 
-/** 踏板画布：只突出标记本身（无方块底板）——深色描边衬底 + 主题色光晕 + 白色实心符号 */
+/** 踏板画布：深炭底板 + 主题色描边 + 白色实心符号（竖立面向镜头，不再水平贴地） */
 function padCanvas(action: GameAction, gold: boolean): HTMLCanvasElement {
   const W = 256; const H = 320;
   const c = document.createElement('canvas');
@@ -121,14 +136,15 @@ function padCanvas(action: GameAction, gold: boolean): HTMLCanvasElement {
   const g = c.getContext('2d');
   if (!g) return c;
   const accent = gold ? '#ffd60a' : ACTION_COLOR[action];
-  // 深色描边衬底（略大一圈，保证浅色背景上也可辨）
-  drawPoseGlyph(g, action, 'rgba(16,8,26,0.92)', W / 2, H / 2, W * 0.9);
-  // 白色实心符号 + 主题色光晕（迎面提亮、放大）
+  drawBadge(g, W / 2, H / 2, W * 0.9, H * 0.9, accent, 30, 10);
   g.save();
   g.shadowColor = accent;
-  g.shadowBlur = 24;
-  drawPoseGlyph(g, action, gold ? '#fff6cf' : '#ffffff', W / 2, H / 2, W * 0.82);
+  g.shadowBlur = 12;
+  drawPoseGlyph(g, action, gold ? '#fff6cf' : '#ffffff', W / 2, H / 2, W * 0.64);
   g.restore();
+  // 底缘亮色横带：竖立后仍保留「贴地踏板」的语义
+  g.fillStyle = accent;
+  g.fillRect(W * 0.18, H * 0.925, W * 0.64, 6);
   return c;
 }
 
@@ -152,7 +168,7 @@ const isAirAction = (a: GameAction): boolean => AIR_ACTIONS.has(a);
 /** 空中标记高度（手部/出拳高度，明显高于路面、可出拳击中） */
 const AIR_Y = 1.8;
 
-/** 空中标记画布：只突出标记本身（无方块底板）——深色描边衬底 + 主题色光晕 + 白色实心符号，面向镜头 */
+/** 空中标记画布：深炭底板 + 主题色描边 + 白色实心符号，面向镜头（与踏板同家族） */
 function airCanvas(action: GameAction, gold: boolean): HTMLCanvasElement {
   const S = 256;
   const c = document.createElement('canvas');
@@ -160,13 +176,11 @@ function airCanvas(action: GameAction, gold: boolean): HTMLCanvasElement {
   const g = c.getContext('2d');
   if (!g) return c;
   const accent = gold ? '#ffd60a' : ACTION_COLOR[action];
-  // 深色描边衬底（略大一圈，保证亮背景上也可辨）
-  drawPoseGlyph(g, action, 'rgba(16,8,26,0.92)', S / 2, S / 2, S * 0.9);
-  // 白色实心符号 + 主题色光晕（迎面提亮、放大）
+  drawBadge(g, S / 2, S / 2, S * 0.92, S * 0.92, accent, 34, 10);
   g.save();
   g.shadowColor = accent;
-  g.shadowBlur = 24;
-  drawPoseGlyph(g, action, gold ? '#fff6cf' : '#ffffff', S / 2, S / 2, S * 0.82);
+  g.shadowBlur = 12;
+  drawPoseGlyph(g, action, gold ? '#fff6cf' : '#ffffff', S / 2, S / 2, S * 0.66);
   g.restore();
   return c;
 }
@@ -408,27 +422,29 @@ export class Game {
     this.scene3.add(rimR);
 
     // 巨型日盘（地平线焦点，路面消失点方向）
-    // 相机朝 +Z 看的是日盘 -Z 背面，须 DoubleSide 否则背面剔除致日盘不可见
+    // 相机朝 +Z 看的是日盘 -Z 背面，须 DoubleSide 否则背面剔除致日盘不可见。
+    // P17：半径 72→52、y 17→26 并减弱光晕——原盘几乎占满消失点，迎面块全叠在
+    // 亮度 225/255 的亮盘上（白符号对比仅 1.15:1），缩小上移后给跑道尽头留出暗带。
     const sun = new THREE.Mesh(
-      new THREE.CircleGeometry(72, 48),
+      new THREE.CircleGeometry(52, 48),
       new THREE.MeshBasicMaterial({ color: pal.sun, toneMapped: false, fog: false, side: THREE.DoubleSide }),
     );
-    sun.position.set(0, 17, 285);
+    sun.position.set(0, 26, 285);
     this.scene3.add(sun);
     const sunGlow = new THREE.Sprite(
       new THREE.SpriteMaterial({
         map: this.glowTex,
         color: pal.sunGlow,
         transparent: true,
-        opacity: 0.35,
+        opacity: 0.22,
         blending: THREE.AdditiveBlending,
         depthWrite: false,
         fog: false,
         toneMapped: false,
       }),
     );
-    sunGlow.position.set(0, 17, 283);
-    sunGlow.scale.setScalar(150);
+    sunGlow.position.set(0, 26, 283);
+    sunGlow.scale.setScalar(110);
     this.scene3.add(sunGlow);
     this.sunGlowSprite = sunGlow;
 
@@ -996,6 +1012,7 @@ export class Game {
     // block = ★ 平面姿势剪影贴片（动作块本身就是姿势形状，对齐参考视频）
     // wall = 墙来白墙板（姿势洞口纹理）；glass = 玻璃桥半透明板 + 剪影面牌
     let bodyMat: THREE.MeshStandardMaterial | THREE.MeshBasicMaterial;
+    let face: THREE.Mesh | null = null;
     if (this.brickStyle === 'wall') {
       bodyMat = new THREE.MeshStandardMaterial({
         map: wallPanelTexture(ev.action),
@@ -1023,16 +1040,18 @@ export class Game {
       const icon = new THREE.Mesh(
         new THREE.PlaneGeometry(style.icon * scale, style.icon * scale),
         new THREE.MeshBasicMaterial({
-          map: silhouetteTexture(ev.action, gold ? '#ffd60a' : ACTION_COLOR[ev.action]),
+          // P17：半透明玻璃板上的 additive 剪影会糊掉，改用与踏板同家族的深炭底板面牌
+          map: airTexture(ev.action, gold),
           transparent: true,
-          blending: THREE.AdditiveBlending,
           depthWrite: false,
+          fog: false,
           toneMapped: false,
         }),
       );
       icon.position.z = -style.d * scale * 0.5 - 0.02;
       icon.rotation.y = Math.PI;
       group.add(icon);
+      face = icon;
     } else if (isAirAction(ev.action)) {
       // ★ 手部动作 = 空中悬浮标记（深色实心徽章，手高度，面向镜头，可出拳击中）
       const airMat = new THREE.MeshBasicMaterial({
@@ -1040,31 +1059,39 @@ export class Game {
         transparent: true,
         opacity: 1,
         depthWrite: false,
+        fog: false,
         toneMapped: false,
       });
       bodyMat = airMat;
       const mark = new THREE.Mesh(SIL_PLANE, airMat);
-      mark.scale.set(1.95 * scale, 1.95 * scale, 1);
+      mark.scale.set(2.35 * scale, 2.35 * scale, 1);
       // 左右分侧抬高（idea 5）：手部左右标记升到左上/右上，鼓励左右开弓
       mark.position.y = AIR_Y + (ev.action === 'left' || ev.action === 'right' ? 0.5 : 0);
       mark.rotation.y = Math.PI; // 面向镜头（相机看 -Z 面）
       group.add(mark);
+      face = mark;
     } else {
-      // ★ 脚步动作 = 地面平铺踏板（深色实心圆角板 + 白色填充符号，铺向地平线）
+      // ★ 脚步动作 = 竖立踏板（P17：原水平贴地在 2.9u 俯视下被透视压成 0.3~4px，
+      //   TV 上等于不存在；改为面向镜头、贴地悬浮，保留底缘亮带作踏板语义）
       const padMat = new THREE.MeshBasicMaterial({
         map: padTexture(ev.action, gold),
         transparent: true,
         opacity: 1,
         depthWrite: false,
+        fog: false,
         toneMapped: false,
       });
       bodyMat = padMat;
       const pad = new THREE.Mesh(SIL_PLANE, padMat);
-      pad.scale.set(2.3 * scale, 2.85 * scale, 1);
-      pad.position.y = 0.06;
-      pad.rotation.x = -Math.PI / 2; // 平铺路面，随车道滑来
+      pad.scale.set(2.05 * scale, 2.55 * scale, 1);
+      pad.position.y = 1.05;
+      pad.rotation.y = Math.PI; // 面向镜头，不再水平贴地
       group.add(pad);
+      face = pad;
     }
+
+    // 记录基础缩放，逐帧按距离补偿（远处块不小于可读尺寸）
+    if (face) face.userData.baseScale = [face.scale.x, face.scale.y];
 
     // 预判光柱（idea 6）：块位细光柱提前提示出招位置，近判定线渐隐（仅 block 形态）
     let pillar: THREE.MeshBasicMaterial | null = null;
@@ -1120,7 +1147,7 @@ export class Game {
     this.scene3.add(group);
     return {
       ev, judged: false, hit: false, group, glow,
-      spin: gold ? 0.8 : 0, baseX, color: colorHex, bodyMat, pillar,
+      spin: gold ? 0.8 : 0, baseX, color: colorHex, bodyMat, pillar, face,
     };
   }
 
@@ -1686,6 +1713,15 @@ export class Game {
       const evT = eventTime(this.chart, br.ev);
       const z = (evT - t) * SPEED + RING_Z;
       br.group.position.z = z;
+      // P17 距离补偿：块在 z=120 处投影仅 ~10px（1280p / f≈677px），TV 3m 观看不可辨。
+      // 远处按 z 放宽到 2.15 倍、靠近判定线平滑回落，保证 12s 预判区始终有可读尺寸。
+      if (br.face) {
+        const bs = br.face.userData.baseScale as number[] | undefined;
+        if (bs) {
+          const k = 1 + Math.max(0, Math.min(1, (z - 18) / 90)) * 1.15;
+          br.face.scale.set(bs[0] * k, bs[1] * k, 1);
+        }
+      }
       const air = this.brickStyle === 'block' && isAirAction(br.ev.action);
       if (this.brickStyle === 'block') {
         br.group.position.x = br.baseX; // 纯透视车道，不漏斗汇聚
